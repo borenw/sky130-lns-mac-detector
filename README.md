@@ -1,4 +1,4 @@
-# Multiplier vs. K=1 Log/LNS Spike Detector — SkyWater 130 nm
+# Eliminating Multipliers with K=1 Log / LNS Arithmetic — SkyWater 130 nm
 
 Two RTL designs of the **same function** — `spike = (A·B + C·D) > Vth`, with
 **12-bit** inputs (`A,B,C,D` ∈ 0…4095, 25-bit `Vth`) — built, verified,

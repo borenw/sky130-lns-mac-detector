@@ -1,4 +1,4 @@
-# Two-Design Comparison — Spike Detector on SkyWater 130 nm (12-bit)
+# Eliminating Multipliers with K=1 Log/LNS — SkyWater 130 nm (12-bit)
 
 **Function (both designs):** `spike = (A·B + C·D) > Vth`, with `A,B,C,D` 12-bit
 unsigned (0–4095) and `Vth` a 25-bit programmable threshold (covering the max sum

@@ -13,6 +13,10 @@ REPORT = os.path.join(ROOT, "report")
 DOCS   = os.path.join(ROOT, "docs")
 LIB    = os.path.join(SYNTH, "sky130_fd_sc_hd__tt_025C_1v80.lib")
 
+import sys as _sys
+_sys.path.insert(0, HERE)
+import model as MODEL      # reuse the golden model for the worked-example table
+
 # category -> (label, light hue, dark hue) : same families as the layout SVG
 CATS = [
     ("ff",    "Flip-flops",       "#2a78d6", "#3987e5"),
@@ -150,31 +154,34 @@ def vth_bars():
     return "\n".join(out)
 
 # ---- datapath block diagram (inline SVG, theme-aware via CSS vars) ----
+# module-level SVG helpers, shared by block_diagram() and rtl_diagram()
+def blk(x, y, w, h, lines, accent=None):
+    p = ['<rect x="%g" y="%g" width="%g" height="%g" rx="6" fill="var(--surface)" '
+         'stroke="var(--ring)"/>' % (x, y, w, h)]
+    if accent:
+        p.append('<rect x="%g" y="%g" width="3.5" height="%g" rx="1.5" fill="%s"/>'
+                 % (x, y, h, accent))
+    n = len(lines)
+    for i, ln in enumerate(lines):
+        ty = y + h / 2 - (n - 1) * 5.5 + i * 11 + 3.5
+        if i == 0:
+            p.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="11" '
+                     'font-weight="600" fill="var(--ink)">%s</text>' % (x + w / 2, ty, ln))
+        else:
+            p.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9.5" '
+                     'fill="var(--ink2)">%s</text>' % (x + w / 2, ty, ln))
+    return "".join(p)
+
+def arr(x1, y1, x2, y2, label=None):
+    s = ['<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="var(--muted)" stroke-width="1.4" '
+         'marker-end="url(#ah)"/>' % (x1, y1, x2, y2)]
+    if label:
+        s.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" '
+                 'fill="var(--muted)">%s</text>' % ((x1 + x2) / 2, min(y1, y2) - 4, label))
+    return "".join(s)
+
 def block_diagram():
     RED, BLUE = "#e34948", "var(--accent)"
-    def blk(x, y, w, h, lines, accent=None):
-        p = ['<rect x="%g" y="%g" width="%g" height="%g" rx="6" fill="var(--surface)" '
-             'stroke="var(--ring)"/>' % (x, y, w, h)]
-        if accent:
-            p.append('<rect x="%g" y="%g" width="3.5" height="%g" rx="1.5" fill="%s"/>'
-                     % (x, y, h, accent))
-        n = len(lines)
-        for i, ln in enumerate(lines):
-            ty = y + h / 2 - (n - 1) * 5.5 + i * 11 + 3.5
-            if i == 0:
-                p.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="11" '
-                         'font-weight="600" fill="var(--ink)">%s</text>' % (x + w / 2, ty, ln))
-            else:
-                p.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9.5" '
-                         'fill="var(--ink2)">%s</text>' % (x + w / 2, ty, ln))
-        return "".join(p)
-    def arr(x1, y1, x2, y2, label=None):
-        s = ['<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="var(--muted)" stroke-width="1.4" '
-             'marker-end="url(#ah)"/>' % (x1, y1, x2, y2)]
-        if label:
-            s.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" '
-                     'fill="var(--muted)">%s</text>' % ((x1 + x2) / 2, min(y1, y2) - 4, label))
-        return "".join(s)
     P = ['<svg viewBox="0 0 520 308" width="100%" xmlns="http://www.w3.org/2000/svg" '
          'font-family="system-ui,-apple-system,Segoe UI,sans-serif">',
          '<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6.5" refY="3" '
@@ -237,6 +244,89 @@ def block_diagram():
            'datapath, threshold folded into the LNS add instead of a bare comparator.</i>'
            '</figcaption>')
     return '<figure class="bd">' + "".join(P) + cap + '</figure>'
+
+def rtl_diagram():
+    """RTL module/file hierarchy in the same left-to-right flow, arrows carry the
+    actual RTL signal names, blocks end in their source-file name (.v)."""
+    RED, BLUE = "#e34948", "var(--accent)"
+    P = ['<svg viewBox="0 0 690 244" width="100%" xmlns="http://www.w3.org/2000/svg" '
+         'font-family="system-ui,-apple-system,Segoe UI,sans-serif">',
+         '<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6.5" refY="3" '
+         'orient="auto"><path d="M0,0 L6.5,3 L0,6 z" fill="var(--muted)"/></marker></defs>']
+    # lane 1 : baseline, one file
+    P.append('<text x="14" y="22" font-size="12.5" font-weight="700" fill="var(--ink2)">'
+             '① Baseline — one file</text>')
+    P.append(blk(14, 44, 56, 34, ["A,B,C,D", "Vth"]))
+    P.append(arr(70, 61, 120, 61, "Ar…Vr"))
+    P.append(blk(120, 41, 178, 42, ["mult_detector.v", "p1=Ar*Br  p2=Cr*Dr", "S=p1+p2 · spike←(S&gt;Vr)"], RED))
+    P.append(arr(298, 62, 336, 62, "spike"))
+    P.append(blk(336, 49, 54, 26, ["spike"]))
+    # lane 2 : log design -- files instantiated inside the top module
+    P.append('<text x="14" y="118" font-size="12.5" font-weight="700" fill="var(--ink2)">'
+             '② Multiplier-free — log_detector.v  ·  lod5.v · lns_add.v · lns_ftable.v</text>')
+    P.append('<rect x="96" y="138" width="500" height="96" rx="9" fill="none" '
+             'stroke="#57564f" stroke-width="1" stroke-dasharray="4 4"/>')
+    P.append('<text x="104" y="152" font-size="10" fill="#8a897f">log_detector.v (top module)</text>')
+    P.append(blk(14, 168, 58, 40, ["A,B,C,D", "Vth"]))
+    P.append(arr(72, 188, 100, 188))
+    P.append(blk(100, 170, 48, 36, ["input", "regs"]))
+    P.append(arr(148, 188, 178, 188, "Ar…Vr"))
+    P.append(blk(178, 168, 60, 44, ["lod5.v", "×5"], BLUE))
+    P.append(arr(238, 188, 268, 188, "e,f,z"))
+    P.append(blk(268, 170, 68, 40, ["L, X, Y", "(inline)"]))
+    P.append(arr(336, 188, 366, 188, "X,Y"))
+    P.append(blk(366, 164, 110, 52, ["lns_add.v", "+ lns_ftable.v", "s = max+F"], BLUE))
+    P.append(arr(476, 188, 506, 188, "s"))
+    P.append(blk(506, 170, 80, 40, ["compare", "+ out reg"]))
+    P.append(arr(586, 188, 618, 188, "spike"))
+    P.append(blk(618, 175, 52, 26, ["spike"]))
+    P.append('</svg>')
+    cap = ('<figcaption>The same flow at the <b>RTL level</b>: blocks ending in '
+           '<code>.v</code> are actual source files and arrows carry the real signal names. '
+           'The baseline is a single <code>mult_detector.v</code>; the multiplier-free design '
+           'is <code>log_detector.v</code> (top) instantiating five <code>lod5.v</code> '
+           'converters (A, B, C, D + Vth) and one <code>lns_add.v</code> — which instantiates '
+           'the generated <code>lns_ftable.v</code> ROM. Input registers, L=&#123;e,f&#125;, '
+           'X=La+Lb, the comparator and the output register are inline in the top module.'
+           '</figcaption>')
+    return '<figure class="bd">' + "".join(P) + cap + '</figure>'
+
+# ---- worked-example table (real values through the golden model) ----
+def _k1_row(A, B, C, D, Vth):
+    zA, la = MODEL.log_k1(A); zB, lb = MODEL.log_k1(B)
+    zC, lc = MODEL.log_k1(C); zD, ld = MODEL.log_k1(D)
+    zx = zA or zB; zy = zC or zD
+    X = la + lb; Y = lc + ld
+    if zx and zy: s = 0
+    elif zx:      s = Y
+    elif zy:      s = X
+    else:         s = max(X, Y) + MODEL.FTAB[abs(X - Y)]
+    zv, lv = MODEL.log_k1(Vth)
+    S = A * B + C * D
+    Shat = 2.0 ** (s / 2.0)
+    Vhat = 0.0 if zv else 2.0 ** (lv / 2.0)
+    out_ex = 1 if S > Vth else 0
+    out_k1 = MODEL.spike_k1(A, B, C, D, Vth)
+    err = 100.0 * (Shat - S) / S if S > 0 else 0.0
+    return S, Shat, Vhat, err, out_ex, out_k1
+
+EXAMPLES = [(25, 30, 12, 40, 600), (8, 8, 5, 5, 150),
+            (50, 50, 20, 20, 2000), (3, 3, 3, 3, 17)]
+def example_rows():
+    out = []
+    for (A, B, C, D, Vth) in EXAMPLES:
+        S, Shat, Vhat, err, oe, ok = _k1_row(A, B, C, D, Vth)
+        mis = (oe != ok)
+        verdict = ('<span class="bad">misjudge ✗</span>' if mis
+                   else '<span class="ok2">match ✓</span>')
+        out.append(
+            "<tr%s><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td><td>%d</td>"
+            "<td>%.0f</td><td>%+.1f%%</td><td>%.0f</td><td>%d</td><td class='hl'>%d</td>"
+            "<td>%s</td></tr>"
+            % (' class="misrow"' if mis else '', A, B, C, D, Vth, S,
+               Shat, err, Vhat, oe, ok, verdict))
+    return "".join(out)
+EXROWS = example_rows()
 
 # ---- file links (to the GitHub repo) ----
 FILE_GROUPS = [
@@ -315,17 +405,23 @@ DERIV = (
 PAGE = f"""<div class="wrap">
 <header>
   <div class="eyebrow">SkyWater 130 nm · open-source RTL→GDS flow (yosys)</div>
-  <h1>Multiplier vs. K=1 Log/LNS Spike Detector</h1>
-  <p class="sub">Two RTL designs of the same function
-  <code>spike = (A·B + C·D) &gt; V<sub>th</sub></code> (<b>12-bit</b> inputs) — an
-  exact-multiplier baseline and a multiplier-free log-domain (LNS, K=1) variant —
-  synthesized and compared on the sky130 HD standard-cell library.</p>
+  <h1>Eliminating Multipliers with K=1 Log / LNS Arithmetic</h1>
+  <p class="sub">A general-purpose look at trading hardware multipliers for a small
+  log-domain ROM. Two RTL implementations of the same multiply-compare kernel
+  <code>(A·B + C·D) &gt; V<sub>th</sub></code> (<b>12-bit</b> inputs) — one with real
+  multipliers, one multiplier-free via a K=1 logarithmic (LNS) datapath — synthesized and
+  compared on the sky130 HD standard-cell library.</p>
   <div class="takeaway">
-    Dropping the two multipliers for the K=1 log detector cuts
+    Dropping the two multipliers for the K=1 log datapath cuts
     <b>area {area_save:.0f}%</b> and estimated <b>power {pow_save:.0f}%</b>,
     at a <b>{overall:.2f}% accuracy cost</b> vs. exact math.
   </div>
 </header>
+
+<section class="bdsec">
+  <h2>RTL structure — modules &amp; signals</h2>
+  {rtl_diagram()}
+</section>
 
 <section class="bdsec">
   <h2>Datapath — target use case (A·B − C·D) &gt; V<sub>th</sub></h2>
@@ -337,6 +433,28 @@ PAGE = f"""<div class="wrap">
     in the log domain — it is <em>not</em> 2<sup>x</sup> − 2<sup>y</sup>.
     <span class="clink">See the derivation ↓</span></span>
   </a>
+</section>
+
+<section>
+  <h2>Worked examples — where the approximation misjudges</h2>
+  <p class="note">Real values through the implemented <code>(A·B + C·D) &gt; V<sub>th</sub></code>
+  build (every number on this page is this add build). <b>Ŝ = 2<sup>s/2</sup></b> is the linear
+  value the K=1 log path represents for A·B+C·D; <b>V̂ = 2<sup>Lv/2</sup></b> is the log-quantized
+  threshold; <b>err%</b> = (Ŝ − S)/S refers to the true input S. The K=1 output is (Ŝ &gt; V̂).</p>
+  <div class="tablescroll">
+  <table>
+    <thead><tr><th>A</th><th>B</th><th>C</th><th>D</th><th>V<sub>th</sub></th>
+      <th>S = A·B+C·D</th><th>Ŝ (K=1)</th><th>err %</th><th>V̂ (K=1)</th>
+      <th>out<br>exact</th><th>out<br>K=1</th><th>verdict</th></tr></thead>
+    <tbody>{EXROWS}</tbody>
+  </table>
+  </div>
+  <p class="note"><b>The last row misjudges.</b> S = 18 sits just above V<sub>th</sub> = 17, but
+  K=1 rounds A·B+C·D down to Ŝ = 16 and the threshold to V̂ = 16, so 16 &gt; 16 is false —
+  output 0 where exact says 1 (a ~11% under-estimate landing right on the boundary). Note the
+  third row carries a far larger −29% error yet still decides correctly: the approximation only
+  flips the result when it <em>straddles</em> the threshold — which is why the overall
+  disagreement is ~5.6% and concentrates near mid-range V<sub>th</sub>.</p>
 </section>
 
 <section class="kpis">
@@ -507,6 +625,9 @@ td,tbody th{padding:10px 14px;border-bottom:1px solid var(--grid);
 tbody tr:last-child td,tbody tr:last-child th{border-bottom:0}
 td.hl{color:var(--accent);font-weight:600}
 td.delta{color:var(--ink2);font-weight:600}
+tbody tr.misrow{background:rgba(227,73,72,.09)}
+.bad{color:#d03b3b;font-weight:700}
+.ok2{color:var(--good);font-weight:600}
 .note{color:var(--ink2);font-size:13.5px;max-width:78ch}
 .note code{font-size:.88em}
 .legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin:12px 0}
@@ -546,7 +667,7 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--grid);color:v
 os.makedirs(DOCS, exist_ok=True)
 doc = ("<!doctype html><html lang='en'><head><meta charset='utf-8'>"
        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-       "<title>Multiplier vs K=1 Log Spike Detector — sky130</title>"
+       "<title>Eliminating Multipliers with K=1 Log/LNS Arithmetic — sky130</title>"
        "<style>%s</style></head><body>%s</body></html>" % (STYLE, PAGE))
 open(os.path.join(DOCS, "index.html"), "w").write(doc)
 print("wrote docs/index.html (%.1f KB)" % (len(doc) / 1024))
