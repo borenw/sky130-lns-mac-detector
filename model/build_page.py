@@ -179,20 +179,20 @@ def block_diagram():
          'font-family="system-ui,-apple-system,Segoe UI,sans-serif">',
          '<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6.5" refY="3" '
          'orient="auto"><path d="M0,0 L6.5,3 L0,6 z" fill="var(--muted)"/></marker></defs>']
-    # lane 1 : multiplier baseline
+    # lane 1 : multiplier baseline -- (A·B − C·D) > Vth  (true subtract)
     P.append('<text x="14" y="22" font-size="12.5" font-weight="700" fill="var(--ink2)">'
              '① Multiplier — baseline</text>')
     P.append(arr(62, 53, 82, 53));  P.append(arr(62, 87, 82, 87))
     P.append(arr(136, 53, 158, 64, "A·B")); P.append(arr(136, 87, 158, 78, "C·D"))
-    P.append(arr(200, 71, 224, 71, "S 25b"));    P.append(arr(296, 71, 322, 70))
+    P.append(arr(200, 71, 224, 71, "S±")); P.append(arr(296, 71, 322, 70))
     P.append(blk(14, 42, 48, 22, ["A, B"]));  P.append(blk(14, 76, 48, 22, ["C, D"]))
     P.append(blk(82, 40, 54, 26, ["A × B"], RED))
     P.append(blk(82, 74, 54, 26, ["C × D"], RED))
-    P.append(blk(158, 56, 42, 30, ["+"]))
+    P.append(blk(158, 56, 42, 30, ["−"]))
     P.append(blk(224, 54, 72, 34, ["S &gt; Vth"]))
     P.append(blk(322, 57, 52, 26, ["spike"]))
-    # lane 2 : log / LNS -- faithful structure (4 parallel converters, 2 adders,
-    # LNS add with 1-input F ROM, Vth's own converter into a comparator)
+    # lane 2 : log / LNS -- (A·B − C·D) > Vth  computed as  A·B > C·D + Vth,
+    # so the threshold folds into the LNS add with y, and x goes to the comparator.
     P.append('<text x="14" y="146" font-size="12.5" font-weight="700" fill="var(--ink2)">'
              '② Log / LNS, K=1</text>')
     P.append('<rect x="148" y="133" width="106" height="17" rx="8.5" '
@@ -206,11 +206,13 @@ def block_diagram():
     # log2 -> adders
     P.append(arr(104, 166.5, 124, 173)); P.append(arr(104, 191.5, 124, 186))
     P.append(arr(104, 220.5, 124, 227)); P.append(arr(104, 245.5, 124, 240))
-    # adders -> LNS ; LNS -> compare ; Vth-log -> compare ; compare -> spike
-    P.append(arr(156, 179, 188, 192, "x")); P.append(arr(156, 233, 188, 220, "y"))
-    P.append(arr(298, 206, 336, 258, "s"))
-    P.append(arr(104, 287.5, 336, 278, "log₂Vth"))
-    P.append(arr(432, 265, 448, 265))
+    # add1 -> compare (x=log A·B) ; add2 -> LNS (y) ; Vth-log -> LNS (v) ;
+    # LNS -> compare (w=log(C·D+Vth)) ; compare -> spike
+    P.append(arr(156, 179, 346, 208, "x"))
+    P.append(arr(156, 233, 196, 240, "y"))
+    P.append(arr(104, 287.5, 196, 272, "log₂Vth"))
+    P.append(arr(308, 253, 346, 232, "w"))
+    P.append(arr(446, 218, 460, 218))
     # input boxes
     for y, lbl in ((158, "A"), (183, "B"), (212, "C"), (237, "D")):
         P.append(blk(12, y, 32, 17, [lbl]))
@@ -218,19 +220,22 @@ def block_diagram():
     # per-operand log2 converters (the 4 parallel paths) + Vth's converter
     for y in (158, 183, 212, 237, 279):
         P.append(blk(52, y, 52, 17, ["log₂·K1"], BLUE))
-    # two log-adders (= LNS multiply), the LNS add, the comparator, spike
+    # two log-adders (= LNS multiply), the LNS add (folds Vth into C·D), compare, spike
     P.append(blk(124, 166, 32, 26, ["+"])); P.append(blk(124, 220, 32, 26, ["+"]))
-    P.append(blk(188, 176, 110, 60, ["LNS add", "max(x,y)+F(|x−y|)", "F = 1-input ROM"], BLUE))
-    P.append(blk(336, 244, 96, 42, ["compare &gt;", "s &gt; log₂Vth"]))
-    P.append(blk(448, 252, 50, 26, ["spike"]))
+    P.append(blk(196, 224, 112, 58, ["LNS add", "w = log₂(C·D+Vth)", "max(y,v)+F(|y−v|)"], BLUE))
+    P.append(blk(346, 196, 100, 44, ["compare &gt;", "A·B &gt; C·D+Vth"]))
+    P.append(blk(460, 205, 50, 26, ["spike"]))
     P.append('</svg>')
-    cap = ('<figcaption>Lane ②: four <b>log₂</b> converters (leading-one detector + 1 '
-           'mantissa bit, K=1); the two adders form x = log₂(A·B) and y = log₂(C·D) — '
-           '<b>adding logs is the multiply</b>. The <b>LNS add</b> then computes '
-           'log₂(A·B + C·D) = max(x,y) + F(|x−y|) with a <b>1-input</b> ROM '
-           '(F = log₂(1+2<sup>−d</sup>)); Vth gets its own log₂ and a <b>comparator</b> '
-           'yields the spike — not a 3-input LUT. Both lanes: registered I/O, 2-cycle '
-           'latency, identical 7-port interface.</figcaption>')
+    cap = ('<figcaption><b>Target use case: spike = (A·B − C·D) &gt; Vth.</b> Subtracting in '
+           'the log domain is LNS&#39;s weak spot (it needs a sign bit and a ROM that '
+           'blows up at cancellation), so rearrange to <b>A·B &gt; C·D + Vth</b>: the '
+           'LNS add folds the threshold into the C·D term — Vth&#39;s log indexes the same '
+           'F = log₂(1+2<sup>−d</sup>) ROM via |y−v| — and a comparator tests '
+           'x = log₂(A·B) against w = log₂(C·D+Vth). At Vth=0 this is just x &gt; y, the '
+           'monotonic-log sign of A·B − C·D (no ROM). <i>Note: the synthesized netlists and '
+           'every number on this page are the closely related A·B + C·D build — same '
+           'datapath, threshold folded into the LNS add instead of a bare comparator.</i>'
+           '</figcaption>')
     return '<figure class="bd">' + "".join(P) + cap + '</figure>'
 
 # ---- file links (to the GitHub repo) ----
@@ -297,7 +302,7 @@ PAGE = f"""<div class="wrap">
 </header>
 
 <section class="bdsec">
-  <h2>Datapath — how the two designs differ</h2>
+  <h2>Datapath — target use case (A·B − C·D) &gt; V<sub>th</sub></h2>
   {block_diagram()}
 </section>
 
