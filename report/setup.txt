@@ -1,0 +1,12 @@
+Phase 1 - Setup / tool versions
+================================
+iverilog : Icarus Verilog version 10.3 (stable)
+vvp      : Icarus Verilog runtime version 10.3 (stable)
+python3  : 3.8.10  (numpy 1.24.4)
+yosys    : Yosys 0.55 (git sha1 60f126cd0)  [installed as yowasp-yosys, WASM build; symlinked ~/.local/bin/yosys]
+OpenSTA  : NOT available -> power via analytic switching-energy model (Phase 6)
+
+Liberty  : synth/sky130_fd_sc_hd__tt_025C_1v80.lib  = 12,841,637 bytes (12.2 MiB, > 10 MB)  OK
+           header: library ("sky130_fd_sc_hd__tt_025C_1v80")
+
+All required tools run.  PASS.

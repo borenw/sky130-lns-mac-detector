@@ -1,0 +1,10 @@
+# Design 2 -- log_detector (K=1 log/LNS) -> sky130 HD standard cells
+read_verilog -sv rtl/log_detector.v rtl/lod5.v rtl/lns_add.v rtl/lns_ftable.v
+hierarchy -top log_detector
+synth -top log_detector -flatten
+dfflibmap -liberty synth/sky130_fd_sc_hd__tt_025C_1v80.lib
+abc -liberty synth/sky130_fd_sc_hd__tt_025C_1v80.lib
+opt_clean
+delete t:$scopeinfo
+stat -liberty synth/sky130_fd_sc_hd__tt_025C_1v80.lib
+write_verilog -noattr synth/log_detector_netlist.v

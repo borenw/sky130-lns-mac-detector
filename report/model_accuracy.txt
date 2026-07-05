@@ -1,0 +1,23 @@
+Design-2 (K=1 log/LNS) accuracy vs Design-1 (exact multiplier)
+==============================================================
+WIDTH=5  K=1  VW=11   full space=1048576 combos x 12 Vth values
+F(d) ROM (half-log2 units): [2, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+Per-Vth disagreement (spike_k1 != spike_exact):
+  Vth      disagree     total        rate%
+  0        0            1048576      0.0000
+  1        0            1048576      0.0000
+  31       1442         1048576      0.1375
+  100      52314        1048576      4.9891
+  256      229604       1048576      21.8967
+  500      135322       1048576      12.9053
+  900      89808        1048576      8.5648
+  961      62270        1048576      5.9385
+  1000     47869        1048576      4.5651
+  1500     2860         1048576      0.2728
+  1922     0            1048576      0.0000
+  2000     0            1048576      0.0000
+
+OVERALL disagreement rate = 621489 / 12582912 = 4.9392 %
+(This is the accuracy cost of dropping the multiplier. A disagreement
+ is only an RTL bug if the RTL output != spike_k1 -- checked in Phase 4.)
