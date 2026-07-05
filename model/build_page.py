@@ -143,6 +143,69 @@ def vth_bars():
             "<span class='vval'>%.2f%%</span></div>" % (vth, 100 * v / vmax, v))
     return "\n".join(out)
 
+# ---- datapath block diagram (inline SVG, theme-aware via CSS vars) ----
+def block_diagram():
+    RED, BLUE = "#e34948", "var(--accent)"
+    def blk(x, y, w, h, lines, accent=None):
+        p = ['<rect x="%g" y="%g" width="%g" height="%g" rx="6" fill="var(--surface)" '
+             'stroke="var(--ring)"/>' % (x, y, w, h)]
+        if accent:
+            p.append('<rect x="%g" y="%g" width="3.5" height="%g" rx="1.5" fill="%s"/>'
+                     % (x, y, h, accent))
+        n = len(lines)
+        for i, ln in enumerate(lines):
+            ty = y + h / 2 - (n - 1) * 5.5 + i * 11 + 3.5
+            if i == 0:
+                p.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="11" '
+                         'font-weight="600" fill="var(--ink)">%s</text>' % (x + w / 2, ty, ln))
+            else:
+                p.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9.5" '
+                         'fill="var(--ink2)">%s</text>' % (x + w / 2, ty, ln))
+        return "".join(p)
+    def arr(x1, y1, x2, y2, label=None):
+        s = ['<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="var(--muted)" stroke-width="1.4" '
+             'marker-end="url(#ah)"/>' % (x1, y1, x2, y2)]
+        if label:
+            s.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" '
+                     'fill="var(--muted)">%s</text>' % ((x1 + x2) / 2, min(y1, y2) - 4, label))
+        return "".join(s)
+    P = ['<svg viewBox="0 0 600 246" width="100%" xmlns="http://www.w3.org/2000/svg" '
+         'font-family="system-ui,-apple-system,Segoe UI,sans-serif">',
+         '<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6.5" refY="3" '
+         'orient="auto"><path d="M0,0 L6.5,3 L0,6 z" fill="var(--muted)"/></marker></defs>']
+    # lane 1 : multiplier baseline
+    P.append('<text x="16" y="24" font-size="12.5" font-weight="700" fill="var(--ink2)">'
+             '① Multiplier — baseline</text>')
+    P.append(arr(66, 55, 88, 55));  P.append(arr(66, 89, 88, 91))
+    P.append(arr(144, 55, 168, 66, "A·B")); P.append(arr(144, 91, 168, 80, "C·D"))
+    P.append(arr(214, 73, 240, 73, "S 25b"));    P.append(arr(314, 73, 342, 73))
+    P.append(blk(16, 44, 50, 22, ["A, B"]));  P.append(blk(16, 78, 50, 22, ["C, D"]))
+    P.append(blk(88, 41, 56, 28, ["A × B"], RED))
+    P.append(blk(88, 77, 56, 28, ["C × D"], RED))
+    P.append(blk(168, 58, 46, 30, ["+"]))
+    P.append(blk(240, 56, 74, 34, ["S &gt; Vth"]))
+    P.append(blk(342, 59, 54, 28, ["spike"]))
+    # lane 2 : log / LNS
+    P.append('<text x="16" y="143" font-size="12.5" font-weight="700" fill="var(--ink2)">'
+             '② Log / LNS, K=1</text>')
+    P.append('<rect x="150" y="131" width="106" height="17" rx="8.5" '
+             'fill="rgba(12,163,12,0.14)" stroke="#0ca30c" stroke-width="0.8"/>')
+    P.append('<text x="203" y="143" text-anchor="middle" font-size="10" font-weight="600" '
+             'fill="#0ca30c">✓ no × cells</text>')
+    P.append(arr(66, 175, 88, 175));  P.append(arr(172, 175, 194, 175))
+    P.append(arr(260, 175, 282, 175, "x, y")); P.append(arr(378, 175, 400, 175, "s"))
+    P.append(arr(492, 175, 512, 175))
+    P.append(blk(16, 150, 50, 50, ["A B", "C D"]))
+    P.append(blk(88, 150, 84, 50, ["log₂ conv", "LOD + K=1"], BLUE))
+    P.append(blk(194, 153, 66, 44, ["Σ logs", "x , y"]))
+    P.append(blk(282, 148, 96, 54, ["LNS add", "max + F(d) ROM"], BLUE))
+    P.append(blk(400, 154, 92, 42, ["s &gt; log₂(Vth)"]))
+    P.append(blk(512, 161, 54, 28, ["spike"]))
+    P.append('<text x="16" y="240" font-size="10" fill="var(--muted)">Both: registered '
+             'inputs + registered output → 2-cycle latency, identical 7-port interface.</text>')
+    P.append('</svg>')
+    return '<figure class="bd">' + "".join(P) + '</figure>'
+
 # ---------------------------------------------------------------------------
 PAGE = f"""<div class="wrap">
 <header>
@@ -158,6 +221,11 @@ PAGE = f"""<div class="wrap">
     at a <b>{overall:.2f}% accuracy cost</b> vs. exact math.
   </div>
 </header>
+
+<section class="bdsec">
+  <h2>Datapath — how the two designs differ</h2>
+  {block_diagram()}
+</section>
 
 <section class="kpis">
   <div class="kpi"><div class="kv">−{area_save:.0f}%</div><div class="kl">standard-cell area</div><div class="ks">{M['area_um2']} → {L['area_um2']} µm²</div></div>
@@ -257,6 +325,8 @@ h2{font-size:20px;margin:0 0 .5em;padding-bottom:.35em;border-bottom:1px solid v
 .takeaway{margin-top:18px;padding:14px 18px;background:var(--surface);border:1px solid var(--ring);
   border-left:3px solid var(--accent);border-radius:8px;font-size:15.5px}
 section{margin-top:38px}
+.bd{margin:14px 0 0;background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:12px 12px 4px}
+.bd svg{display:block;width:100%;height:auto}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border:0}
 .kpi{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px 16px 14px}
 .kv{font-size:30px;font-weight:700;letter-spacing:-.01em;color:var(--accent)}
