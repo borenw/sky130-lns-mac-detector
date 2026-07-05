@@ -175,42 +175,63 @@ def block_diagram():
             s.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" '
                      'fill="var(--muted)">%s</text>' % ((x1 + x2) / 2, min(y1, y2) - 4, label))
         return "".join(s)
-    P = ['<svg viewBox="0 0 600 246" width="100%" xmlns="http://www.w3.org/2000/svg" '
+    P = ['<svg viewBox="0 0 520 308" width="100%" xmlns="http://www.w3.org/2000/svg" '
          'font-family="system-ui,-apple-system,Segoe UI,sans-serif">',
          '<defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6.5" refY="3" '
          'orient="auto"><path d="M0,0 L6.5,3 L0,6 z" fill="var(--muted)"/></marker></defs>']
     # lane 1 : multiplier baseline
-    P.append('<text x="16" y="24" font-size="12.5" font-weight="700" fill="var(--ink2)">'
+    P.append('<text x="14" y="22" font-size="12.5" font-weight="700" fill="var(--ink2)">'
              '① Multiplier — baseline</text>')
-    P.append(arr(66, 55, 88, 55));  P.append(arr(66, 89, 88, 91))
-    P.append(arr(144, 55, 168, 66, "A·B")); P.append(arr(144, 91, 168, 80, "C·D"))
-    P.append(arr(214, 73, 240, 73, "S 25b"));    P.append(arr(314, 73, 342, 73))
-    P.append(blk(16, 44, 50, 22, ["A, B"]));  P.append(blk(16, 78, 50, 22, ["C, D"]))
-    P.append(blk(88, 41, 56, 28, ["A × B"], RED))
-    P.append(blk(88, 77, 56, 28, ["C × D"], RED))
-    P.append(blk(168, 58, 46, 30, ["+"]))
-    P.append(blk(240, 56, 74, 34, ["S &gt; Vth"]))
-    P.append(blk(342, 59, 54, 28, ["spike"]))
-    # lane 2 : log / LNS
-    P.append('<text x="16" y="143" font-size="12.5" font-weight="700" fill="var(--ink2)">'
+    P.append(arr(62, 53, 82, 53));  P.append(arr(62, 87, 82, 87))
+    P.append(arr(136, 53, 158, 64, "A·B")); P.append(arr(136, 87, 158, 78, "C·D"))
+    P.append(arr(200, 71, 224, 71, "S 25b"));    P.append(arr(296, 71, 322, 70))
+    P.append(blk(14, 42, 48, 22, ["A, B"]));  P.append(blk(14, 76, 48, 22, ["C, D"]))
+    P.append(blk(82, 40, 54, 26, ["A × B"], RED))
+    P.append(blk(82, 74, 54, 26, ["C × D"], RED))
+    P.append(blk(158, 56, 42, 30, ["+"]))
+    P.append(blk(224, 54, 72, 34, ["S &gt; Vth"]))
+    P.append(blk(322, 57, 52, 26, ["spike"]))
+    # lane 2 : log / LNS -- faithful structure (4 parallel converters, 2 adders,
+    # LNS add with 1-input F ROM, Vth's own converter into a comparator)
+    P.append('<text x="14" y="146" font-size="12.5" font-weight="700" fill="var(--ink2)">'
              '② Log / LNS, K=1</text>')
-    P.append('<rect x="150" y="131" width="106" height="17" rx="8.5" '
+    P.append('<rect x="148" y="133" width="106" height="17" rx="8.5" '
              'fill="rgba(12,163,12,0.14)" stroke="#0ca30c" stroke-width="0.8"/>')
-    P.append('<text x="203" y="143" text-anchor="middle" font-size="10" font-weight="600" '
+    P.append('<text x="201" y="145" text-anchor="middle" font-size="10" font-weight="600" '
              'fill="#0ca30c">✓ no × cells</text>')
-    P.append(arr(66, 175, 88, 175));  P.append(arr(172, 175, 194, 175))
-    P.append(arr(260, 175, 282, 175, "x, y")); P.append(arr(378, 175, 400, 175, "s"))
-    P.append(arr(492, 175, 512, 175))
-    P.append(blk(16, 150, 50, 50, ["A B", "C D"]))
-    P.append(blk(88, 150, 84, 50, ["log₂ conv", "LOD + K=1"], BLUE))
-    P.append(blk(194, 153, 66, 44, ["Σ logs", "x , y"]))
-    P.append(blk(282, 148, 96, 54, ["LNS add", "max + F(d) ROM"], BLUE))
-    P.append(blk(400, 154, 92, 42, ["s &gt; log₂(Vth)"]))
-    P.append(blk(512, 161, 54, 28, ["spike"]))
-    P.append('<text x="16" y="240" font-size="10" fill="var(--muted)">Both: registered '
-             'inputs + registered output → 2-cycle latency, identical 7-port interface.</text>')
+    # input -> log2 arrows (4 operands + Vth)
+    for cy in (166.5, 191.5, 220.5, 245.5):
+        P.append(arr(44, cy, 52, cy))
+    P.append(arr(48, 287.5, 52, 287.5))
+    # log2 -> adders
+    P.append(arr(104, 166.5, 124, 173)); P.append(arr(104, 191.5, 124, 186))
+    P.append(arr(104, 220.5, 124, 227)); P.append(arr(104, 245.5, 124, 240))
+    # adders -> LNS ; LNS -> compare ; Vth-log -> compare ; compare -> spike
+    P.append(arr(156, 179, 188, 192, "x")); P.append(arr(156, 233, 188, 220, "y"))
+    P.append(arr(298, 206, 336, 258, "s"))
+    P.append(arr(104, 287.5, 336, 278, "log₂Vth"))
+    P.append(arr(432, 265, 448, 265))
+    # input boxes
+    for y, lbl in ((158, "A"), (183, "B"), (212, "C"), (237, "D")):
+        P.append(blk(12, y, 32, 17, [lbl]))
+    P.append(blk(12, 279, 36, 17, ["Vth"]))
+    # per-operand log2 converters (the 4 parallel paths) + Vth's converter
+    for y in (158, 183, 212, 237, 279):
+        P.append(blk(52, y, 52, 17, ["log₂·K1"], BLUE))
+    # two log-adders (= LNS multiply), the LNS add, the comparator, spike
+    P.append(blk(124, 166, 32, 26, ["+"])); P.append(blk(124, 220, 32, 26, ["+"]))
+    P.append(blk(188, 176, 110, 60, ["LNS add", "max(x,y)+F(|x−y|)", "F = 1-input ROM"], BLUE))
+    P.append(blk(336, 244, 96, 42, ["compare &gt;", "s &gt; log₂Vth"]))
+    P.append(blk(448, 252, 50, 26, ["spike"]))
     P.append('</svg>')
-    return '<figure class="bd">' + "".join(P) + '</figure>'
+    cap = ('<figcaption>Lane ②: four <b>log₂</b> converters (leading-one detector + 1 '
+           'mantissa bit, K=1); the two adders form x = log₂(A·B) and y = log₂(C·D) — '
+           '<b>adding logs is the multiply</b>. The <b>LNS add</b> then computes '
+           'log₂(A·B + C·D) = max(x,y) + F(|x−y|) with a <b>1-input</b> ROM '
+           '(F = log₂(1+2<sup>−d</sup>)); Vth gets its own log₂ and a <b>comparator</b> '
+           'yields the spike — not a 3-input LUT. Both lanes: registered I/O, 2-cycle '
+           'latency, identical 7-port interface.</figcaption>')
+    return '<figure class="bd">' + "".join(P) + cap + '</figure>'
 
 # ---- file links (to the GitHub repo) ----
 FILE_GROUPS = [
@@ -385,8 +406,9 @@ h2{font-size:20px;margin:0 0 .5em;padding-bottom:.35em;border-bottom:1px solid v
 .takeaway{margin-top:18px;padding:14px 18px;background:var(--surface);border:1px solid var(--ring);
   border-left:3px solid var(--accent);border-radius:8px;font-size:15.5px}
 section{margin-top:38px}
-.bd{margin:14px 0 0;background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:12px 12px 4px}
+.bd{margin:14px 0 0;background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:12px 12px 12px}
 .bd svg{display:block;width:100%;height:auto}
+.bd figcaption{margin-top:10px;padding-top:10px;border-top:1px solid var(--grid);color:var(--ink2);font-size:12.5px;line-height:1.5}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border:0}
 .kpi{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px 16px 14px}
 .kv{font-size:30px;font-weight:700;letter-spacing:-.01em;color:var(--accent)}
