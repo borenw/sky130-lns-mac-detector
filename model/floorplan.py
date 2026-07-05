@@ -98,12 +98,17 @@ def write_gds(path, top, pl):
     lib.write_gds(path)
 
 # ---------------------------------------------------------------------------
-def svg(title, pl):
+def svg(title, pl, ref_x, ref_y, ref_label=None):
+    """Render at a COMMON scale set by (ref_x, ref_y) so the two dies are directly
+    comparable in size.  A smaller die (Design 2) sits inside the reference
+    footprint frame (Design 1's bounding box)."""
     W = 520.0
-    scale = W / pl["die_x"]
-    Hd = pl["die_y"] * scale
-    padL, padR, padT, padB = 62, 24, 40, 58
-    fw, fh = padL + W + padR, padT + Hd + padB
+    scale = W / ref_x                       # common px/µm, fixed by the reference die
+    Href  = ref_y * scale                   # reference die height in px
+    dw = pl["die_x"] * scale                # this die's width  in px
+    dh = pl["die_y"] * scale                # this die's height in px
+    padL, padR, padT, padB = 62, 24, 40, 64
+    fw, fh = padL + W + padR, padT + Href + padB
     S = []
     S.append('<svg viewBox="0 0 %.0f %.0f" width="100%%" '
              'xmlns="http://www.w3.org/2000/svg" font-family="system-ui,-apple-system,Segoe UI,sans-serif">'
@@ -112,33 +117,40 @@ def svg(title, pl):
     S.append('<text x="%.0f" y="24" fill="#ffffff" font-size="14" font-weight="600">%s</text>'
              % (padL, title))
     ox, oy = padL, padT
-    # die core
+    # reference footprint frame (Design 1's die), dashed, drawn behind
+    if ref_label:
+        S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="none" '
+                 'stroke="#57564f" stroke-width="1" stroke-dasharray="4 4"/>'
+                 % (ox, oy, W, Href))
+        S.append('<text x="%.1f" y="%.1f" fill="#8a897f" font-size="10.5" text-anchor="end">%s</text>'
+                 % (ox + W, oy + Href + 13, ref_label))
+    # this die core (top-left anchored inside the reference frame)
     S.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#1f1f1d" '
-             'stroke="#3a3a37" stroke-width="1"/>' % (ox, oy, W, Hd))
+             'stroke="#3a3a37" stroke-width="1"/>' % (ox, oy, dw, dh))
     for (x, y, w, h, cat) in pl["rects"]:
         rx = ox + x * scale; ry = oy + y * scale
-        rw = max(0.7, w * scale - 0.4); rh = h * scale - 0.5
+        rw = max(0.5, w * scale - 0.3); rh = max(0.6, h * scale - 0.4)
         S.append('<rect x="%.2f" y="%.2f" width="%.2f" height="%.2f" fill="%s"/>'
                  % (rx, ry, rw, rh, CATS[cat][1]))
-    # x dimension (bottom)
-    yb = oy + Hd + 20
+    # x dimension along THIS die's actual width
+    yb = oy + Href + 22
     S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#c3c2b7" stroke-width="1"/>'
-             % (ox, yb, ox + W, yb))
-    for xx in (ox, ox + W):
+             % (ox, yb, ox + dw, yb))
+    for xx in (ox, ox + dw):
         S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#c3c2b7" stroke-width="1"/>'
                  % (xx, yb - 4, xx, yb + 4))
     S.append('<text x="%.1f" y="%.1f" fill="#e8e8e2" font-size="12.5" text-anchor="middle" '
-             'font-weight="600">x = %.1f µm</text>' % (ox + W / 2, yb + 18, pl["die_x"]))
-    # y dimension (left)
+             'font-weight="600">x = %.1f µm</text>' % (ox + dw / 2, yb + 18, pl["die_x"]))
+    # y dimension along THIS die's actual height
     xl = ox - 16
     S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#c3c2b7" stroke-width="1"/>'
-             % (xl, oy, xl, oy + Hd))
-    for yy in (oy, oy + Hd):
+             % (xl, oy, xl, oy + dh))
+    for yy in (oy, oy + dh):
         S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#c3c2b7" stroke-width="1"/>'
                  % (xl - 4, yy, xl + 4, yy))
     S.append('<text x="%.1f" y="%.1f" fill="#e8e8e2" font-size="12.5" text-anchor="middle" '
              'font-weight="600" transform="rotate(-90 %.1f %.1f)">y = %.1f µm</text>'
-             % (xl - 8, oy + Hd / 2, xl - 8, oy + Hd / 2, pl["die_y"]))
+             % (xl - 8, oy + dh / 2, xl - 8, oy + dh / 2, pl["die_y"]))
     # caption
     S.append('<text x="%.0f" y="%.0f" fill="#898781" font-size="11">%d rows · die %.0f × %.0f = %.0f µm² '
              '· cells %.0f µm² @ %.0f%% util</text>'
@@ -154,12 +166,19 @@ def main():
         ("Design 1 — mult_detector (baseline)", "mult_detector", "mult_detector_netlist.v"),
         ("Design 2 — log_detector (K=1)",        "log_detector",  "log_detector_netlist.v"),
     ]
-    rows = []
+    # place both first, then render both at Design 1's common scale
+    placed = []
     for title, top, netl in designs:
         insts = parse_netlist(os.path.join(SYNTH, netl))
         pl = place(insts, areas)
         write_gds(os.path.join(SYNTH, top + ".gds"), top, pl)
-        open(os.path.join(REPORT, top + "_layout.svg"), "w").write(svg(title, pl))
+        placed.append((title, top, pl))
+    ref_x = placed[0][2]["die_x"]; ref_y = placed[0][2]["die_y"]   # Design 1 is the reference
+    rows = []
+    for idx, (title, top, pl) in enumerate(placed):
+        ref_label = None if idx == 0 else "Design 1 footprint (same scale)"
+        open(os.path.join(REPORT, top + "_layout.svg"), "w").write(
+            svg(title, pl, ref_x, ref_y, ref_label))
         rows.append((top, pl))
         print("%-16s die %.1f x %.1f um  (%.0f um2 die, %.1f um2 cells, %d rows) -> %s.gds"
               % (top, pl["die_x"], pl["die_y"], pl["die_area"], pl["cell_area"], pl["nrows"], top))

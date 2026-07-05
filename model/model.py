@@ -18,12 +18,12 @@ hardware cannot drift.
 import math, os, csv, argparse
 import numpy as np
 
-WIDTH = 5            # input bit width
+WIDTH = 12           # input bit width
 K     = 1            # fraction bits kept in the log converter
-VW    = 11           # Vth bit width
-IN_MAX  = (1 << WIDTH) - 1          # 31
-VTH_MAX = (1 << VW) - 1             # 2047
-S_MAX   = IN_MAX*IN_MAX*2           # 1922
+VW    = 25           # Vth bit width (covers max S below)
+IN_MAX  = (1 << WIDTH) - 1          # 4095
+VTH_MAX = (1 << VW) - 1             # 33554431
+S_MAX   = IN_MAX*IN_MAX*2           # 33538050 (needs 25 bits)
 
 HERE   = os.path.dirname(os.path.abspath(__file__))
 ROOT   = os.path.dirname(HERE)
@@ -93,7 +93,8 @@ def spike_k1(A, B, C, D, Vth):
 # ---------------------------------------------------------------------------
 def emit_ftable_v():
     os.makedirs(RTL, exist_ok=True)
-    idx_bits = max(1, (DMAX).bit_length())         # index width for d (0..18 -> 5)
+    idx_bits = 8                                   # fixed byte-wide index: holds DMAX
+                                                   # for WIDTH up to ~120, keeps RTL width-robust
     fbits    = max(1, (max(FTAB)).bit_length())    # value width      (0..2  -> 2)
     path = os.path.join(RTL, "lns_ftable.v")
     with open(path, "w") as f:
@@ -109,9 +110,12 @@ def emit_ftable_v():
     return path, idx_bits, fbits
 
 # ---------------------------------------------------------------------------
-# Vectorised full-space disagreement + vector-file generation.
+# Vectorised disagreement + vector-file generation.
+# The 12-bit space is 4096^4 ~ 2.8e14 combos -- far too large to enumerate, so
+# we estimate the disagreement rate by Monte-Carlo sampling.
 # ---------------------------------------------------------------------------
-VTHS = [0, 1, 31, 100, 256, 500, 900, 961, 1000, 1500, 1922, 2000]
+VTHS = [0, 1, 1000, 100000, 1000000, 4000000, 8388608,
+        12000000, 16769025, 20000000, 25000000, 33538050]
 
 def vec_log_tables(nmax):
     """Lookup arrays z[v], L[v] for v in 0..nmax."""
@@ -122,11 +126,13 @@ def vec_log_tables(nmax):
         z[v] = zz; L[v] = ll
     return z, L
 
-def compute_full():
-    """Return flattened A,B,C,D and per-input k1 intermediates over full space."""
-    vals = np.arange(IN_MAX + 1, dtype=np.int64)
-    A, B, C, D = np.meshgrid(vals, vals, vals, vals, indexing="ij")
-    A = A.ravel(); B = B.ravel(); C = C.ravel(); D = D.ravel()
+def compute_sample(N, seed):
+    """Sample N random (A,B,C,D) and return them + per-input k1 intermediates."""
+    rng = np.random.default_rng(seed)
+    A = rng.integers(0, IN_MAX + 1, size=N, dtype=np.int64)
+    B = rng.integers(0, IN_MAX + 1, size=N, dtype=np.int64)
+    C = rng.integers(0, IN_MAX + 1, size=N, dtype=np.int64)
+    D = rng.integers(0, IN_MAX + 1, size=N, dtype=np.int64)
     zin, Lin = vec_log_tables(IN_MAX)
     X = Lin[A] + Lin[B]
     Y = Lin[C] + Lin[D]
@@ -149,6 +155,7 @@ def k1_spike_vec(s, s_zero, Vth):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--nsamples", type=int, default=4_000_000)
     ap.add_argument("--sample-per-vth", type=int, default=4000)
     ap.add_argument("--seed", type=int, default=1234)
     args = ap.parse_args()
@@ -159,11 +166,12 @@ def main():
     print("FTAB (d=0..%d):" % DMAX, FTAB)
     print("emitted", fpath, "(index %d bits, value %d bits)" % (idx_bits, fbits))
 
-    A, B, C, D, Sexact, s, s_zero = compute_full()
+    A, B, C, D, Sexact, s, s_zero = compute_sample(args.nsamples, args.seed)
     ncombo = A.size
-    print("full input space: %d combos (%d^4)" % (ncombo, IN_MAX + 1))
+    print("sampled %d random combos from the %d^4 = %.2e 12-bit space"
+          % (ncombo, IN_MAX + 1, (IN_MAX + 1.0) ** 4))
 
-    rng = np.random.default_rng(args.seed)
+    rng = np.random.default_rng(args.seed + 1)
 
     total_pairs = 0
     total_disagree = 0
@@ -184,10 +192,9 @@ def main():
         # random sample
         idx = rng.choice(ncombo, size=min(args.sample_per_vth, ncombo), replace=False)
         picks.update(idx.tolist())
-        # boundary: exact S within +/-4 of Vth (stress the comparator)
-        near = np.nonzero(np.abs(Sexact - Vth) <= 4)[0]
-        if near.size > 800:
-            near = rng.choice(near, size=800, replace=False)
+        # boundary: the 800 samples whose exact S is nearest Vth (stress comparator)
+        kb = min(800, ncombo)
+        near = np.argpartition(np.abs(Sexact - Vth), kb - 1)[:kb]
         picks.update(near.tolist())
         # disagreement cases (stress RTL against k1 exactly where it matters)
         dif = np.nonzero(exact != k1)[0]
@@ -213,8 +220,9 @@ def main():
     lines = []
     lines.append("Design-2 (K=1 log/LNS) accuracy vs Design-1 (exact multiplier)")
     lines.append("=" * 62)
-    lines.append("WIDTH=%d  K=%d  VW=%d   full space=%d combos x %d Vth values"
+    lines.append("WIDTH=%d  K=%d  VW=%d   Monte-Carlo: %d sampled combos x %d Vth values"
                  % (WIDTH, K, VW, ncombo, len(VTHS)))
+    lines.append("(12-bit space 4096^4 ~ 2.8e14 is not enumerable; rate is a sampled estimate)")
     lines.append("F(d) ROM (half-log2 units): %s" % FTAB)
     lines.append("")
     lines.append("Per-Vth disagreement (spike_k1 != spike_exact):")

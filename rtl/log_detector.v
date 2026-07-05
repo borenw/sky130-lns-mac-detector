@@ -6,9 +6,9 @@
 // Values carried in half-log2 units: L(v) = 2*floor(log2 v)+frac = {e,frac}.
 `default_nettype none
 module log_detector #(
-    parameter WIDTH = 5,
+    parameter WIDTH = 12,
     parameter K     = 1,      // fraction bits (this build: 1)
-    parameter VW    = 11
+    parameter VW    = 25
 ) (
     input  wire             clk,
     input  wire [WIDTH-1:0] A, B, C, D,
@@ -34,22 +34,23 @@ module log_detector #(
     wire                     fV, zV;
     lod #(.N(VW)) LV (.v(Vr), .e(eV), .frac(fV), .is_zero(zV));
 
-    // L(v) = 2*e + frac = {e, frac}  (half-log2 units), zero-extended to 6 bits
-    wire [5:0] La = {eA, fA};
-    wire [5:0] Lb = {eB, fB};
-    wire [5:0] Lc = {eC, fC};
-    wire [5:0] Ld = {eD, fD};
-    wire [5:0] Lv = {eV, fV};
+    // L(v) = 2*e + frac = {e, frac}  (half-log2 units), zero-extended to 8 bits.
+    // 8-bit buses hold every log value for WIDTH up to ~120 (max L here: Lv=49).
+    wire [7:0] La = {eA, fA};
+    wire [7:0] Lb = {eB, fB};
+    wire [7:0] Lc = {eC, fC};
+    wire [7:0] Ld = {eD, fD};
+    wire [7:0] Lv = {eV, fV};
 
-    wire [5:0] X  = La + Lb;          // log2(A)+log2(B)
-    wire [5:0] Y  = Lc + Ld;          // log2(C)+log2(D)
+    wire [7:0] X  = La + Lb;          // log2(A)+log2(B)
+    wire [7:0] Y  = Lc + Ld;          // log2(C)+log2(D)
     wire       zx = zA | zB;          // A*B == 0
     wire       zy = zC | zD;          // C*D == 0
 
     // ---- LNS add: s = max(X,Y) + F(|X-Y|) ----
-    wire [6:0] s;
+    wire [8:0] s;
     wire       s_zero;
-    lns_add #(.LW(6)) ADD (.X(X), .Y(Y), .zx(zx), .zy(zy), .s(s), .s_zero(s_zero));
+    lns_add #(.LW(8)) ADD (.X(X), .Y(Y), .zx(zx), .zy(zy), .s(s), .s_zero(s_zero));
 
     // ---- log-domain comparison: spike = s > log2(Vth) ----
     reg spike_c;

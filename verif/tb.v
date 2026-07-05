@@ -11,22 +11,22 @@ module tb;
     always #5 clk = ~clk;
 
     // stimulus / expected storage
-    reg  [4:0]  Aa[0:MAXV-1], Bb[0:MAXV-1], Cc[0:MAXV-1], Dd[0:MAXV-1];
-    reg  [10:0] Vv[0:MAXV-1];
+    reg  [11:0] Aa[0:MAXV-1], Bb[0:MAXV-1], Cc[0:MAXV-1], Dd[0:MAXV-1];
+    reg  [24:0] Vv[0:MAXV-1];
     reg         Ee[0:MAXV-1];      // exp_exact
     reg         Ek[0:MAXV-1];      // exp_k1
     integer     NV;
 
     // driven inputs
-    reg  [4:0]  A, B, C, D;
-    reg  [10:0] Vth;
+    reg  [11:0] A, B, C, D;
+    reg  [24:0] Vth;
 
     // DUT outputs
     wire spike1, spike2;
 
-    mult_detector #(.WIDTH(5), .VW(11)) DUT1 (
+    mult_detector #(.WIDTH(12), .VW(25)) DUT1 (
         .clk(clk), .A(A), .B(B), .C(C), .D(D), .Vth(Vth), .spike(spike1));
-    log_detector  #(.WIDTH(5), .K(1), .VW(11)) DUT2 (
+    log_detector  #(.WIDTH(12), .K(1), .VW(25)) DUT2 (
         .clk(clk), .A(A), .B(B), .C(C), .D(D), .Vth(Vth), .spike(spike2));
 
     integer fd, r, n, i, k;
@@ -45,8 +45,8 @@ module tb;
             if (r > 0) begin
                 n = $sscanf(line, "%d,%d,%d,%d,%d,%d,%d", a, b, c, d, vth, ee, ek);
                 if (n == 7) begin
-                    Aa[i]=a[4:0]; Bb[i]=b[4:0]; Cc[i]=c[4:0]; Dd[i]=d[4:0];
-                    Vv[i]=vth[10:0]; Ee[i]=ee[0]; Ek[i]=ek[0];
+                    Aa[i]=a[11:0]; Bb[i]=b[11:0]; Cc[i]=c[11:0]; Dd[i]=d[11:0];
+                    Vv[i]=vth[24:0]; Ee[i]=ee[0]; Ek[i]=ek[0];
                     i = i + 1;
                 end
             end

@@ -5,7 +5,7 @@
 // All values are in half-log2 units (integers).
 `default_nettype none
 module lns_add #(
-    parameter LW = 6          // width of X,Y  (max L(A)+L(B) = 18)
+    parameter LW = 8          // width of X,Y  (max L(A)+L(B) = DMAX)
 ) (
     input  wire [LW-1:0]  X,
     input  wire [LW-1:0]  Y,
@@ -17,7 +17,7 @@ module lns_add #(
     wire [LW-1:0] d  = (X > Y) ? (X - Y) : (Y - X);   // |X-Y|
     wire [LW-1:0] mx = (X > Y) ? X : Y;               // max(X,Y)
     wire [1:0]    Fd;
-    lns_ftable FT (.d(d[4:0]), .f(Fd));
+    lns_ftable FT (.d(d[7:0]), .f(Fd));   // F-ROM index is byte-wide (see model.py)
 
     always @* begin
         if (zx && zy) begin s_zero = 1'b1; s = {(LW+1){1'b0}}; end

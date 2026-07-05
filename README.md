@@ -1,8 +1,9 @@
 # Multiplier vs. K=1 Log/LNS Spike Detector — SkyWater 130 nm
 
-Two RTL designs of the **same function** — `spike = (A·B + C·D) > Vth` — built,
-verified, synthesized on the open-source **sky130** HD standard-cell library, and
-compared on **area and power**:
+Two RTL designs of the **same function** — `spike = (A·B + C·D) > Vth`, with
+**12-bit** inputs (`A,B,C,D` ∈ 0…4095, 25-bit `Vth`) — built, verified,
+synthesized on the open-source **sky130** HD standard-cell library, and compared
+on **area and power**:
 
 - **Design 1 (baseline):** exact multiplier — `A*B + C*D`, one comparator.
 - **Design 2 (K=1 log / LNS):** *no multipliers*. Each input goes through a
@@ -16,27 +17,31 @@ compared on **area and power**:
 
 | Metric | Design 1 · multiplier | Design 2 · log K=1 | Design 2 / 1 |
 |---|--:|--:|--:|
-| Standard-cell area | 2436.09 µm² | **1751.68 µm²** | 0.719× (**−28.1%**) |
-| Die size (x × y @65%) | 59.9 × 62.6 µm | **52.1 × 51.7 µm** | −28.1% |
+| Standard-cell area | 12015.27 µm² | **3569.67 µm²** | 0.297× (**−70.3%**) |
+| Die size (x × y @65%) | 135.9 × 136.0 µm | **74.8 × 73.4 µm** | −70.3% |
+| Std-cell count | 1476 | **416** | 0.282× |
 | Multipliers (`$mul`) | 2 | **0** | eliminated |
-| Energy / op (est.) | 1.731 pJ | 1.269 pJ | 0.733× |
-| Power @ 50 MHz (est.) | 86.56 µW | **63.47 µW** | 0.733× (**−26.7%**) |
-| Accuracy vs exact | reference | 4.94 % disagree | K=1 cost |
+| Energy / op (est.) | 9.714 pJ | 2.483 pJ | 0.256× |
+| Power @ 50 MHz (est.) | 485.72 µW | **124.15 µW** | 0.256× (**−74.4%**) |
+| Accuracy vs exact | reference | ≈5.60 % disagree | K=1 cost |
 | Verification | PASS (= `exp_exact`) | PASS (= `exp_k1`) | both bit-exact |
 
-**Takeaway:** dropping the two multipliers for the K=1 log detector cuts area ~28 %
-and estimated power ~27 %, at a **4.94 % disagreement** with exact math (concentrated
-at mid-range thresholds, zero at the extremes).
+**Takeaway:** dropping the two 12-bit multipliers for the K=1 log detector cuts area
+~70 % and estimated power ~74 %, at a **≈5.6 % disagreement** with exact math
+(concentrated in the mid dynamic range, zero at the extremes). The saving is far
+larger than at 5-bit (−28 %) because multiplier area grows ~quadratically with width
+while the log datapath grows ~linearly.
 
-### Standard-cell floorplans (measured die x × y)
+### Standard-cell floorplans (measured die x × y, same scale)
 
 | Design 1 — multiplier | Design 2 — log K=1 |
 |---|---|
 | ![Design 1 layout](docs/mult_layout.png) | ![Design 2 layout](docs/log_layout.png) |
 
-Colored by cell function: 🔵 flip-flops · 🟢 adder (xor/maj) · 🟡 mux · 🟣 logic · 🟠 clk/buf.
-The multiplier is dominated by adder cells; the log design replaces them with logic +
-a small ROM/mux and is visibly smaller.
+Both dies are drawn at the **same scale** — Design 2's dashed frame is Design 1's
+footprint, so the ~4× area difference is literal. Colored by cell function:
+🔵 flip-flops · 🟢 adder (xor/maj) · 🟡 mux · 🟣 logic · 🟠 clk/buf. The multiplier is
+dominated by adder cells; the log design replaces them with logic + a small ROM/mux.
 
 > **Note on the layout:** no place-and-route tool (OpenROAD/Innovus) was available on the
 > build host, so the die x/y is a **standard-cell floorplan estimate** — the real
@@ -75,7 +80,7 @@ docs/    index.html (GitHub Pages) · layout PNGs
 - **One golden model, no drift:** `model.py` is the spec for *both* designs and
   **emits the `F(d)` ROM** consumed by the Verilog, so model and hardware can't diverge.
 - **Design 2's "correct" answer is the K=1 model, not exact math.** RTL is checked
-  bit-exact to `spike_k1` (0 mismatches / 61,657 vectors); disagreement with exact math
+  bit-exact to `spike_k1` (0 mismatches / 63,875 vectors); disagreement with exact math
   is the *approximation cost*, reported separately.
 - **No latches, no multipliers** in Design 2 (yosys audit); both netlists fully mapped
   to sky130 cells with zero `$`-cells.

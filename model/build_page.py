@@ -149,9 +149,9 @@ PAGE = f"""<div class="wrap">
   <div class="eyebrow">SkyWater 130 nm · open-source RTL→GDS flow (yosys)</div>
   <h1>Multiplier vs. K=1 Log/LNS Spike Detector</h1>
   <p class="sub">Two RTL designs of the same function
-  <code>spike = (A·B + C·D) &gt; V<sub>th</sub></code> — an exact-multiplier baseline
-  and a multiplier-free log-domain (LNS, K=1) variant — synthesized and compared on
-  the sky130 HD standard-cell library.</p>
+  <code>spike = (A·B + C·D) &gt; V<sub>th</sub></code> (<b>12-bit</b> inputs) — an
+  exact-multiplier baseline and a multiplier-free log-domain (LNS, K=1) variant —
+  synthesized and compared on the sky130 HD standard-cell library.</p>
   <div class="takeaway">
     Dropping the two multipliers for the K=1 log detector cuts
     <b>area {area_save:.0f}%</b> and estimated <b>power {pow_save:.0f}%</b>,
@@ -188,8 +188,9 @@ PAGE = f"""<div class="wrap">
   <b>floorplan estimate</b>, not a routed layout: the real synthesized cells are packed
   into 2.72 µm rows at 65% utilization to measure die <b>x × y</b>. Colored by cell
   <em>function</em>. A real <code>.gds</code> is emitted for each
-  (<code>synth/*.gds</code>). Absolute x/y scale with the utilization assumption; the
-  Design-2/Design-1 ratio does not.</p>
+  (<code>synth/*.gds</code>). <b>Both dies are drawn at the same scale</b> — Design 2's
+  dashed frame is Design 1's footprint, so the size difference is literal. Absolute x/y
+  scale with the utilization assumption; the Design-2/Design-1 ratio does not.</p>
   <div class="legend">{legend()}</div>
   <div class="dies">
     <figure>{svg_mult}<figcaption>Design 1 — die {FM['die_x_um']} × {FM['die_y_um']} µm = {FM['die_area_um2']} µm²</figcaption></figure>
@@ -203,7 +204,8 @@ PAGE = f"""<div class="wrap">
   (<span class="ci" style="background:{CAT_LIGHT['arith']}"></span>xor/maj arrays); the
   log design replaces them with converter logic
   (<span class="ci" style="background:{CAT_LIGHT['logic']}"></span>) and a small ROM/mux.
-  Both carry the identical 32 flip-flops (<span class="ci" style="background:{CAT_LIGHT['ff']}"></span>).</p>
+  Both carry the identical registered-I/O flip-flops (<span class="ci" style="background:{CAT_LIGHT['ff']}"></span>) —
+  the multiplier just wraps them in far more combinational area.</p>
   <div class="comp">
     <div class="crow"><span class="clab">Design 1</span><div class="cbar">{comp_bar(mult_cat, mult_total)}</div><span class="cval">{mult_total:.0f} µm²</span></div>
     <div class="crow"><span class="clab">Design 2</span><div class="cbar">{comp_bar(log_cat, log_total)}</div><span class="cval">{log_total:.0f} µm²</span></div>
@@ -213,7 +215,8 @@ PAGE = f"""<div class="wrap">
 
 <section>
   <h2>K=1 accuracy cost — disagreement vs exact</h2>
-  <p class="note">Over the full 32⁴ input space × each threshold (≈12.6 M evaluations).
+  <p class="note">Over 4 M Monte-Carlo samples × each threshold (the 12-bit space,
+  4096⁴ ≈ 2.8×10¹⁴, cannot be enumerated, so this is a sampled estimate).
   Design 2's RTL is bit-exact to its K=1 model; a disagreement with exact math is the
   <em>approximation cost</em>, not a bug. Overall = <b>{overall:.2f}%</b>, peaking at
   mid-range thresholds and vanishing at the extremes.</p>
@@ -305,5 +308,16 @@ doc = ("<!doctype html><html lang='en'><head><meta charset='utf-8'>"
        "<style>%s</style></head><body>%s</body></html>" % (STYLE, PAGE))
 open(os.path.join(DOCS, "index.html"), "w").write(doc)
 print("wrote docs/index.html (%.1f KB)" % (len(doc) / 1024))
+
+# also render the layout PNGs used by README.md (keeps them in sync with the SVGs)
+try:
+    import cairosvg
+    for top, out in [("mult_detector", "mult_layout.png"), ("log_detector", "log_layout.png")]:
+        cairosvg.svg2png(url=os.path.join(REPORT, top + "_layout.svg"),
+                         write_to=os.path.join(DOCS, out), output_width=760)
+    print("wrote docs/{mult,log}_layout.png")
+except Exception as e:
+    print("NOTE: skipped README PNGs (cairosvg unavailable):", e)
+
 print("area −%.1f%%  power −%.1f%%  die −%.1f%%  disagreement %.2f%%"
       % (area_save, pow_save, die_save, overall))

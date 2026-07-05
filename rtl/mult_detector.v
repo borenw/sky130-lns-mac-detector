@@ -3,8 +3,8 @@
 // Registered inputs and registered output -> 2-cycle latency.
 `default_nettype none
 module mult_detector #(
-    parameter WIDTH = 5,      // input width  (0..31)
-    parameter VW    = 11      // Vth width    (0..2047, covers max S=1922)
+    parameter WIDTH = 12,     // input width  (0..4095)
+    parameter VW    = 25      // Vth width    (0..33554431, covers max S=33538050)
 ) (
     input  wire             clk,
     input  wire [WIDTH-1:0] A, B, C, D,
