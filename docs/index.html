@@ -14,6 +14,10 @@ body{margin:0;background:var(--plane);color:var(--ink);
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;
   background:var(--surface);border:1px solid var(--ring);border-radius:5px;padding:.05em .4em}
 .eyebrow{color:var(--accent);font-weight:600;font-size:13px;letter-spacing:.02em}
+.toprow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.rev{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);text-decoration:none;font-variant-numeric:tabular-nums;border:1px solid var(--ring);border-radius:20px;padding:3px 11px;white-space:nowrap}
+.rev:hover{border-color:var(--accent);color:var(--accent)}
+.revdot{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block;flex:0 0 auto}
 h1{font-size:30px;line-height:1.2;margin:.25em 0 .3em}
 h2{font-size:20px;margin:0 0 .5em;padding-bottom:.35em;border-bottom:1px solid var(--grid)}
 .sub{color:var(--ink2);font-size:16px;max-width:70ch}
@@ -96,7 +100,11 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--grid);color:v
   h1{font-size:25px}.crow{grid-template-columns:64px 1fr 64px}.files{grid-template-columns:repeat(2,1fr)}}
 </style></head><body><div class="wrap">
 <header>
-  <div class="eyebrow">SkyWater 130 nm · open-source RTL→GDS flow (yosys)</div>
+  <div class="toprow">
+    <div class="eyebrow">SkyWater 130 nm · open-source RTL→GDS flow (yosys)</div>
+    <a class="rev" href="https://github.com/borenw/sky130-lns-mac-detector/commits/main" title="revision history — built from this commit">
+      <span class="revdot"></span>rev r16 · ce24cf0 · 2026-07-06</a>
+  </div>
   <h1>Eliminating Multipliers with Log / LNS Arithmetic</h1>
   <p class="sub">A general-purpose look at trading hardware multipliers for a small
   log-domain ROM. Two RTL implementations of the same multiply-compare kernel

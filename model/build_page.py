@@ -98,6 +98,18 @@ REPO      = "https://github.com/borenw/sky130-lns-mac-detector"
 REPO_BLOB = REPO + "/blob/main"
 REPO_ZIP  = REPO + "/archive/refs/heads/main.zip"
 
+# ---- revision badge (git state at build time) ----
+import subprocess as _sp
+def _git(args, default=""):
+    try:
+        return _sp.check_output(["git"] + args, cwd=ROOT, stderr=_sp.DEVNULL).decode().strip()
+    except Exception:
+        return default
+REV_SHA   = _git(["rev-parse", "--short", "HEAD"], "dev")
+REV_NUM   = _git(["rev-list", "--count", "HEAD"], "")
+REV_DATE  = _git(["log", "-1", "--format=%cd", "--date=short"], "")
+REV_LABEL = ("r%s · %s" % (REV_NUM, REV_SHA)) if REV_NUM else REV_SHA
+
 M = pa["mult baseline"]; L = pa["log K=%d" % K]
 FM = fp["mult_detector"]; FL = fp["log_detector"]
 
@@ -597,7 +609,11 @@ LUT_DERIV = html.escape(
 # ---------------------------------------------------------------------------
 PAGE = f"""<div class="wrap">
 <header>
-  <div class="eyebrow">SkyWater 130 nm · open-source RTL→GDS flow (yosys)</div>
+  <div class="toprow">
+    <div class="eyebrow">SkyWater 130 nm · open-source RTL→GDS flow (yosys)</div>
+    <a class="rev" href="{REPO}/commits/main" title="revision history — built from this commit">
+      <span class="revdot"></span>rev {REV_LABEL} · {REV_DATE}</a>
+  </div>
   <h1>Eliminating Multipliers with Log / LNS Arithmetic</h1>
   <p class="sub">A general-purpose look at trading hardware multipliers for a small
   log-domain ROM. Two RTL implementations of the same multiply-compare kernel
@@ -855,6 +871,10 @@ body{margin:0;background:var(--plane);color:var(--ink);
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;
   background:var(--surface);border:1px solid var(--ring);border-radius:5px;padding:.05em .4em}
 .eyebrow{color:var(--accent);font-weight:600;font-size:13px;letter-spacing:.02em}
+.toprow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.rev{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);text-decoration:none;font-variant-numeric:tabular-nums;border:1px solid var(--ring);border-radius:20px;padding:3px 11px;white-space:nowrap}
+.rev:hover{border-color:var(--accent);color:var(--accent)}
+.revdot{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block;flex:0 0 auto}
 h1{font-size:30px;line-height:1.2;margin:.25em 0 .3em}
 h2{font-size:20px;margin:0 0 .5em;padding-bottom:.35em;border-bottom:1px solid var(--grid)}
 .sub{color:var(--ink2);font-size:16px;max-width:70ch}
