@@ -532,12 +532,16 @@ def lut_transfer_svg():
              % (ox, oy, ox, oy + ph))
     S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--axis)" stroke-width="1"/>'
              % (ox, oy + ph, ox + pw, oy + ph))
-    for v, col in ((v1, ACC), (v2, AQ)):                          # the two curves
-        pts, u = [], x0
+    def vp_q(u, Vth):                                             # ACTUAL quantized Vth′
+        Lu = round(SCALE * u); Lv = round(SCALE * math.log2(Vth))
+        d = abs(Lu - Lv); Fv = FTAB[d] if d < len(FTAB) else 0
+        return (max(Lu, Lv) - Lu + Fv) / float(SCALE)             # = out_q − log₂(C·D)
+    for Vth, v, col in ((V1, v1, ACC), (V2, v2, AQ)):             # two programmed thresholds
+        u, path = x0, "M %.1f %.1f" % (X(x0), Y(vp_q(x0, Vth)))   # staircase (quarter-log₂ steps)
         while u <= x1 + 1e-6:
-            pts.append("%.1f,%.1f" % (X(u), Y(vp(u, v))))
-            u += 0.2
-        S.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2"/>' % (" ".join(pts), col))
+            path += " H %.1f V %.1f" % (X(u), Y(vp_q(u, Vth)))
+            u += 0.04
+        S.append('<path d="%s" fill="none" stroke="%s" stroke-width="2"/>' % (path, col))
         S.append('<circle cx="%.1f" cy="%.1f" r="3.2" fill="%s"/>' % (X(v), Y(1), col))   # knee: C·D = Vth
     lx, ly = ox + pw - 196, oy + 10                               # legend (top-right, empty area)
     S.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2.4"/>' % (lx, ly, lx + 18, ly, ACC))
@@ -796,9 +800,11 @@ PAGE = f"""<div class="wrap">
   <div class="deriv"><pre>{LUT_DERIV}</pre></div>
   <p class="note">The <b>1st term is a wire</b> (the input, carried into an adder); the
   <b>2nd term is the LUT</b> — name it <b>Vth′(C,D) = log₂(1 + 2<sup>log₂Vth − log₂(C·D)</sup>)</b>,
-  the log-domain amount by which Vth lifts <code>log₂(C·D)</code> ({UNITW} units), a function of
-  C, D with the constant Vth baked in. So the whole block is just
-  <code>out = log₂(C·D) + Vth′(C,D)</code>.</p>
+  the log-domain amount by which Vth lifts <code>log₂(C·D)</code> ({UNITW} units). So the whole
+  block is just <code>out = log₂(C·D) + Vth′(C,D)</code>. <b>Vth stays programmable</b>: it is a
+  runtime input, and the LUT below is <b>Vth-independent</b> (the general correction addressed by
+  the log-gap), so changing Vth just slides where each C·D lands on it — it is <em>not</em> baked
+  into the table.</p>
   <p class="note">On an ASIC there is <b>no LUT primitive</b> — synthesis maps this correction to
   <b>6 standard cells (33.8 µm², &lt;1% of the log detector)</b>. The table is the design's
   <em>general</em>, bounded correction addressed by the log-gap
@@ -808,12 +814,13 @@ PAGE = f"""<div class="wrap">
 
   <h3 class="sub3">Transfer function &nbsp;<span class="fn">Vth′ vs log₂(C·D), for two thresholds</span></h3>
   <div class="plotcard">{lut_transfer_svg()}</div>
-  <p class="note"><b>Impact of Vth:</b> the LUT is addressed by the log-<em>gap</em>, so raising
-  the threshold just slides where each product lands. <b>4× Vth shifts the curve right by
-  log₂4 = 2</b> (in log₂(C·D)) and lifts Vth′ everywhere — the threshold's log-domain weight
-  grows and its influence reaches larger C·D. The knee (dot) sits at C·D = Vth, where
-  Vth′ = log₂(2) = 1. For C·D ≫ Vth the correction decays to 0 (the sum is just C·D); for
-  C·D ≪ Vth it rises toward log₂(Vth) − log₂(C·D) (the sum is dominated by Vth).</p>
+  <p class="note"><b>Impact of Vth — two programmed settings.</b> Vth is a runtime input, so these
+  two <em>quantized staircases</em> ({UNITW} steps — the actual LUT function, not a smooth curve)
+  are just two values you can program. Raising Vth slides where each product lands:
+  <b>4× Vth shifts the curve right by log₂4 = 2</b> (in log₂(C·D)) and lifts Vth′ everywhere. The
+  knee (dot) is at C·D = Vth, where Vth′ = log₂2 = 1; for C·D ≫ Vth the correction decays to 0
+  (the sum is just C·D), and for C·D ≪ Vth it rises toward log₂(Vth) − log₂(C·D) (the sum is
+  dominated by Vth).</p>
 
   <h3 class="sub3">Truth table &nbsp;<span class="fn">address → Vth′</span> (identical runs collapsed)</h3>
   <div class="tablescroll" style="display:inline-block;max-width:100%">
@@ -830,7 +837,10 @@ PAGE = f"""<div class="wrap">
   <div class="deriv"><pre>{GATE_RTL}</pre></div>
 
   <h3 class="sub3">Logic-gate schematic</h3>
-  <figure class="schem">{SCHEM}</figure>
+  <figure class="schem">
+    <figcaption class="lutio"><b>in:</b>&nbsp; log₂(C·D), log₂(Vth) <span class="prog">programmable</span>
+      &nbsp;→&nbsp; <b>F-LUT · 6 gates</b> &nbsp;→&nbsp; <b>out:</b>&nbsp; Vth′</figcaption>
+    {SCHEM}</figure>
   <p class="note">Two logic levels: <code>or4_1</code>/<code>nor2_1</code> build the internal
   terms (<code>_0_</code> = OR of the high address bits, i.e. “d is large”; <code>_1_</code>,
   <code>_2_</code>), then <code>a211oi_1</code>/<code>nor3_1</code>/<code>nor4_1</code> produce
@@ -896,6 +906,9 @@ h3.sub3{font-size:14px;margin:22px 0 8px;color:var(--ink)}
 .fn{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82em;font-weight:400;color:var(--ink2)}
 .plotcard,.schem{background:var(--surface);border:1px solid var(--ring);border-radius:10px;padding:12px;margin:0}
 .plotcard svg,.schem svg{display:block;width:100%;height:auto}
+.schem figcaption.lutio{font-size:12px;color:var(--ink2);text-align:center;padding-bottom:9px;margin-bottom:6px;border-bottom:1px solid var(--grid)}
+.schem figcaption.lutio b{color:var(--ink)}
+.prog{color:var(--good);border:1px solid var(--good);border-radius:20px;padding:0 7px;font-size:10.5px;font-weight:600}
 .ftab{border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
 .ftab th,.ftab td{border:1px solid var(--grid);padding:5px 12px;text-align:right}
 .ftab th{color:var(--ink2);font-weight:600;background:var(--surface)}
