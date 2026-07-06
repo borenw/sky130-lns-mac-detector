@@ -519,9 +519,10 @@ def lut_transfer_svg():
     for dd in range(0, XMAX + 1):
         S.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="var(--accent)"/>' % (X(dd), Y(FTAB[dd])))
     S.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="11" fill="var(--ink2)">'
-             'input  d = |X − Y|  (ROM address, %s units)</text>' % (ox + pw / 2, H - 3, UNITW))
+             'address  d = | log₂(C·D) − log₂(Vth) |   (%s units)</text>'
+             % (ox + pw / 2, H - 3, UNITW))
     S.append('<text x="11" y="%.1f" text-anchor="middle" font-size="11" fill="var(--ink2)" '
-             'transform="rotate(-90 11 %.1f)">output F</text>' % (oy + ph / 2, oy + ph / 2))
+             'transform="rotate(-90 11 %.1f)">Vth′(C,D)</text>' % (oy + ph / 2, oy + ph / 2))
     S.append('</svg>')
     return "".join(S)
 
@@ -571,6 +572,14 @@ def _schematic():
     except Exception:
         return "<p class='note'>(schematic asset report/ftable_sch.svg missing)</p>"
 SCHEM = _schematic()
+
+LUT_DERIV = html.escape(
+    "  log₂(C·D + Vth)  =  log₂(C·D)  +  Vth′(C,D)\n"
+    "\n"
+    "     1st term :  log₂(C·D)                                     ← a wire (the input)\n"
+    "     2nd term :  Vth′(C,D) = log₂( 1 + 2^( log₂Vth − log₂(C·D) ) )   ← the LUT\n"
+    "\n"
+    "  since   log₂(C·D) + log₂(1 + Vth/(C·D))  =  log₂(C·D + Vth)")
 
 # ---------------------------------------------------------------------------
 PAGE = f"""<div class="wrap">
@@ -752,18 +761,28 @@ PAGE = f"""<div class="wrap">
 </section>
 
 <section id="f-rom-lut">
-  <h2>Inside the F(d) LUT — table → 6 gates</h2>
-  <p class="note">The F(d) add-correction ROM is the design's only lookup table. On an ASIC
-  (sky130) there is <b>no LUT primitive</b> — synthesis maps the table to <b>6 combinational
-  standard cells (33.8 µm², &lt;1% of the log detector)</b>. Address = <code>d = |X − Y|</code>
-  ({UNITW} units); value = <code>F</code> (0…{SCALE}, so a {FBITS}-bit output).</p>
+  <h2>Inside the LUT — the correction Vth′(C,D)</h2>
+  <p class="note">Take the sub-block that folds the threshold into a product: input
+  <code>log₂(C·D)</code>, output <code>log₂(C·D + Vth)</code>. Factor out the input:</p>
+  <div class="deriv"><pre>{LUT_DERIV}</pre></div>
+  <p class="note">The <b>1st term is a wire</b> (the input, carried into an adder); the
+  <b>2nd term is the LUT</b> — name it <b>Vth′(C,D) = log₂(1 + 2<sup>log₂Vth − log₂(C·D)</sup>)</b>,
+  the log-domain amount by which Vth lifts <code>log₂(C·D)</code> ({UNITW} units), a function of
+  C, D with the constant Vth baked in. So the whole block is just
+  <code>out = log₂(C·D) + Vth′(C,D)</code>.</p>
+  <p class="note">On an ASIC there is <b>no LUT primitive</b> — synthesis maps this correction to
+  <b>6 standard cells (33.8 µm², &lt;1% of the log detector)</b>. The table is the design's
+  <em>general</em>, bounded correction addressed by the log-gap
+  <code>d = |log₂(C·D) − log₂(Vth)|</code>, value Vth′ (0…{SCALE}, a {FBITS}-bit output). In the
+  full A·B+C·D detector the same table combines the two <em>products</em> instead, and when
+  C·D &lt; Vth the roles swap so the address stays ≥ 0.</p>
 
-  <h3 class="sub3">Transfer function &nbsp;F(d)</h3>
+  <h3 class="sub3">Transfer function &nbsp;<span class="fn">Vth′ vs the log-gap</span></h3>
   <div class="plotcard">{lut_transfer_svg()}</div>
 
-  <h3 class="sub3">Truth table &nbsp;<span class="fn">input d → output F</span> (identical runs collapsed)</h3>
+  <h3 class="sub3">Truth table &nbsp;<span class="fn">address → Vth′</span> (identical runs collapsed)</h3>
   <div class="tablescroll" style="display:inline-block;max-width:100%">
-    <table class="ftab"><thead><tr><th>d = |X−Y| &nbsp;(address)</th><th>F &nbsp;(value)</th></tr></thead>
+    <table class="ftab"><thead><tr><th>d = |log₂(C·D) − log₂(Vth)|</th><th>Vth′ &nbsp;(value)</th></tr></thead>
     <tbody>{lut_rle_rows()}</tbody></table>
   </div>
   <p class="note">Full ROM: <code>{ROM_PREVIEW}</code> ({ROM_LEN} entries). The staircase is
