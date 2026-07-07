@@ -913,7 +913,7 @@ PAGE = f"""<div class="wrap">
 </section>
 
 <section id="sweep-sub">
-  <h2>RTL sweep — the subtraction kernel &nbsp;<span class="fn">A·B − C·D &gt; V<sub>th</sub>, six operand sets</span></h2>
+  <h2>RTL sweep — the subtraction kernel &nbsp;<span class="fn">A·B − C·D &gt; V<sub>th</sub>, eleven operand sets</span></h2>
   <p class="note">Same idea for the <b>subtraction</b> kernel, from RTL simulation
   (<code>verif/tb_sweep_sub.v</code> drives <code>mult_sub.v</code> and <code>log_sub.v</code>; the
   log design uses the rearrangement <code>A·B &gt; C·D + Vth</code>, and both are verified bit-exact
@@ -924,11 +924,11 @@ PAGE = f"""<div class="wrap">
     <span><i style="background:#199e70"></i>log / LNS (K=2)</span>
     <span><i class="band"></i>disagree</span></div>
   {sweep_sub_plots()}
-  <p class="note"><b>Cancellation</b> sets the accuracy: <b>25,30,12,40</b> (A·B and C·D both large, the
-  difference small) has a wide band, whereas <b>8,8,5,5</b> is near-exact. <b>3,3,3,3</b> gives
-  A·B−C·D = 0, so both read 0 for any V<sub>th</sub> ≥ 0 (they agree trivially). The log design can err
-  in either direction — <b>40,40,10,10</b> flips a touch late (over-estimate), <b>30,30,10,10</b>
-  flips early (under-estimate).</p>
+  <p class="note"><b>Cancellation</b> sets the accuracy: when A·B and C·D are both large but their
+  difference is small — <b>60,60,50,50</b> (3600−2500) or <b>25,30,12,40</b> — the log path is well
+  off (wide band), whereas <b>8,8,5,5</b> is near-exact. The log design can err in either direction:
+  <b>40,40,10,10</b> flips a touch late (over-estimate), while <b>30,30,10,10</b> and
+  <b>23,19,11,7</b> flip early (under-estimate).</p>
 </section>
 
 <section id="accuracy">

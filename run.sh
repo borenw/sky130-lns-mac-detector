@@ -37,8 +37,9 @@ vvp verif/tb_sweep.vvp
 echo "== Phase 4c: RTL subtraction sweep (A*B-C*D > Vth, several sets) =="
 python3 - <<'PY'
 import csv, sys; sys.path.insert(0,'model'); import model as m
-sets=[(25,30,12,40,300),(8,8,5,5,150),(50,50,20,20,2000),
-      (3,3,3,3,17),(40,40,10,10,1500),(30,30,10,10,800)]   # A,B,C,D,operating Vth
+sets=[(25,30,12,40,300),(8,8,5,5,150),(50,50,20,20,2000),(40,40,10,10,1500),(30,30,10,10,800),
+      (20,20,10,10,300),(60,60,50,50,1100),(100,10,30,30,150),(45,45,15,15,1800),
+      (12,12,4,4,150),(23,19,11,7,380)]   # A,B,C,D,operating Vth
 rows=[]
 for sid,(A,B,C,D,Vop) in enumerate(sets):
     S=A*B-C*D; Vmax=2*Vop                                  # x-axis = 0 .. 2*Vth
