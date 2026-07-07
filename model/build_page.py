@@ -679,41 +679,60 @@ def sweep_plot_svg():
     return "".join(S)
 
 # ---- SUBTRACTION sweep (A*B - C*D > Vth): small multiples over several operand sets ----
-def _read_sweep_sub():
-    from collections import defaultdict
-    by = defaultdict(list)
-    try:
-        for r in csv.DictReader(open(os.path.join(ROOT, "verif", "sweep_sub_rtl.csv"))):
-            by[int(r["sid"])].append((int(r["Vth"]), int(r["out_mult"]), int(r["out_log"]),
-                                      int(r.get("out_log_k3", r["out_log"])),
-                                      int(r["A"]), int(r["B"]), int(r["C"]), int(r["D"])))
-        for k in by:
-            by[k].sort()
-    except Exception:
-        return {}
-    return by
-SWEEP_SUB = _read_sweep_sub()
+def _rand_sub_sweep():
+    """12 seeded-random operand sets; classic-exact vs log/LNS at K=2 and K=4, from the
+    golden model (bit-exact to the RTL; the shipped design is K=2)."""
+    import random as _r
+    rng = _r.Random(2025)
+    sv = (MODEL.K, MODEL.SCALE, MODEL.DMAX, MODEL.FTAB)
+    def setK(k):
+        MODEL.K = k; MODEL.SCALE = 1 << k
+        MODEL.DMAX = 2 * (MODEL.SCALE * (MODEL.WIDTH - 1) + (MODEL.SCALE - 1))
+        MODEL.FTAB = MODEL.build_ftab(MODEL.DMAX)
+    def logflip(A, B, C, D, Vmax):
+        return next((v for v in range(0, Vmax + 1) if MODEL.sub_k2(A, B, C, D, v) == 0), None)
+    sets = []; tries = 0
+    while len(sets) < 12 and tries < 200000:
+        tries += 1
+        A, B, C, D = (rng.randint(2, 52) for _ in range(4))
+        S = A * B - C * D
+        if not (30 <= S <= 2200):
+            continue
+        Vmax = 2 * S
+        setK(2); l2 = logflip(A, B, C, D, Vmax)
+        setK(4); l4 = logflip(A, B, C, D, Vmax)
+        if l2 is None or l4 is None or not (0 < l2 < Vmax and 0 < l4 < Vmax):
+            continue
+        sets.append((A, B, C, D, S))
+    data = {2: [], 4: []}
+    for k in (2, 4):
+        setK(k)
+        for (A, B, C, D, Vop) in sets:
+            Vmax = 2 * Vop; step = max(1, Vmax // 300); rows = []; v = 0
+            while v <= Vmax:
+                rows.append((v, 1 if (A * B - C * D) > v else 0, MODEL.sub_k2(A, B, C, D, v)))
+                v += step
+            data[k].append((A, B, C, D, Vop, rows))
+    MODEL.K, MODEL.SCALE, MODEL.DMAX, MODEL.FTAB = sv
+    return data
+RAND_SUB = _rand_sub_sweep()
 
-def _sub_mini(rows):
-    A, B, C, D = rows[0][4], rows[0][5], rows[0][6], rows[0][7]
+def _sub_mini(A, B, C, D, vop, rows, logcol):
     Sv = A * B - C * D
-    mf = next((v for v, mm, ll, *_ in rows if mm == 0), None)
-    lf = next((v for v, mm, ll, *_ in rows if ll == 0), None)
-    xlo = 0; xhi = max(v for v, *_ in rows)           # x-axis = 0 .. 2·Vth
-    vop = xhi // 2                                     # operating threshold (Vmax/2)
+    xlo = 0; xhi = max(v for v, *_ in rows)
     if xhi <= xlo: xhi = xlo + 20
     W, H = 384, 176; ox, oy = 18, 42; pw, ph = W - ox - 8, H - oy - 26
     def X(v): return ox + pw * (min(max(v, xlo), xhi) - xlo) / (xhi - xlo)
     yhi, ylo = oy + ph * 0.22, oy + ph * 0.80
     def YL(val, off): return (yhi if val else ylo) - off
-    ACC, AQ, K3 = "var(--accent)", "#199e70", "#8a5cf0"
+    ACC = "var(--accent)"
     P = ['<svg viewBox="0 0 %d %d" width="100%%" xmlns="http://www.w3.org/2000/svg" '
          'font-family="system-ui,-apple-system,Segoe UI,sans-serif">' % (W, H)]
     P.append('<text x="8" y="14" font-size="11.5" font-weight="600" fill="var(--ink)">%d,%d,%d,%d</text>'
              % (A, B, C, D))
     P.append('<text x="%d" y="14" text-anchor="end" font-size="10.5" fill="var(--ink2)">'
              'A·B−C·D = %d</text>' % (W - 8, Sv))
-    dis = [v for v, mm, ll, *_ in rows if mm != ll and xlo <= v <= xhi]
+    dis = [v for v, oe, ol in rows if oe != ol and xlo <= v <= xhi]
     if dis:
         bx0, bx1 = X(min(dis)), X(max(dis))
         P.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="rgba(208,59,59,0.14)"/>'
@@ -726,33 +745,35 @@ def _sub_mini(rows):
                  % (ox - 3, yy + 3, val))
     P.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--axis)" stroke-width="1"/>'
              % (ox, oy + ph, ox + pw, oy + ph))
-    # operating threshold marker (x-axis spans 0 .. 2·Vth, so Vth sits at mid)
     vx = X(vop)
     P.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--ink2)" stroke-width="1" '
              'stroke-dasharray="3 2" opacity="0.55"/>' % (vx, oy - 2, vx, oy + ph))
     P.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="var(--ink2)">'
              'Vth=%d</text>' % (vx, oy - 5, vop))
-    for tv in (xlo, xhi):                             # only 0 and 2·Vth (evenly spaced, no collision)
+    for tv in (xlo, xhi):
         xx = X(tv)
         P.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--axis)" stroke-width="1"/>'
                  % (xx, oy + ph, xx, oy + ph + 4))
         P.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="var(--muted)">%d</text>'
                  % (xx, oy + ph + 14, tv))
-    for idx, col, off in ((1, ACC, 0), (2, AQ, 6), (3, K3, 12)):
-        vis = [r for r in rows if xlo <= r[0] <= xhi] or rows
-        pth = "M %.1f %.1f" % (X(vis[0][0]), YL(vis[0][idx], off))
-        for r in vis[1:]:
+    for idx, col, off in ((1, ACC, 0), (2, logcol, 7)):     # 1=exact, 2=log/LNS
+        pth = "M %.1f %.1f" % (X(rows[0][0]), YL(rows[0][idx], off))
+        for r in rows[1:]:
             pth += " H %.1f V %.1f" % (X(r[0]), YL(r[idx], off))
         P.append('<path d="%s" fill="none" stroke="%s" stroke-width="2"/>' % (pth, col))
     P.append('</svg>')
     return "".join(P)
 
 def sweep_sub_plots():
-    if not SWEEP_SUB:
-        return "<p class='note'>(run <code>verif/tb_sweep_sub</code>)</p>"
-    cards = "".join('<div class="subcard">%s</div>' % _sub_mini(SWEEP_SUB[s])
-                    for s in sorted(SWEEP_SUB))
-    return '<div class="subgrid">%s</div>' % cards
+    if not RAND_SUB.get(2):
+        return "<p class='note'>(no sweep data)</p>"
+    def grid(k, col):
+        cards = "".join('<div class="subcard">%s</div>' % _sub_mini(A, B, C, D, vop, rows, col)
+                        for (A, B, C, D, vop, rows) in RAND_SUB[k])
+        return ('<h3 class="sub3">K = %d &nbsp;<span class="fn">%d mantissa bits — %s</span></h3>'
+                '<div class="subgrid">%s</div>'
+                % (k, k, ("this build" if k == 2 else "double the helper bits"), cards))
+    return grid(2, "#199e70") + grid(4, "#8a5cf0")
 
 # ---- Accuracy vs helper bits K: error of the K-bit log value + real synth area vs mult ----
 def _area_vs_k():
@@ -936,25 +957,27 @@ PAGE = f"""<div class="wrap">
 </section>
 
 <section id="sweep-sub">
-  <h2>RTL sweep — the subtraction kernel &nbsp;<span class="fn">A·B − C·D &gt; V<sub>th</sub>, eleven operand sets</span></h2>
-  <p class="note">Same idea for the <b>subtraction</b> kernel, from RTL simulation
-  (<code>verif/tb_sweep_sub.v</code> drives <code>mult_sub.v</code> and <code>log_sub.v</code>; the
-  log design uses the rearrangement <code>A·B &gt; C·D + Vth</code>, and both are verified bit-exact
-  to the golden model). Each panel sweeps V<sub>th</sub> and overlays the classic exact output against
-  the log/LNS at <b>K=2 and K=3</b> — the classic flips exactly at V<sub>th</sub> = A·B−C·D, the log
-  designs at their approximations; the shaded band is the K=2 disagreement. <b>K=3 lands closer to
-  the exact flip</b> (aggregate error band ~32% narrower), for +1 helper bit (≈ +8 pts of the
-  multiplier's area — see the Accuracy-vs-K table).</p>
-  <div class="leg2"><span><i style="background:var(--accent)"></i>classic (multiplier)</span>
+  <h2>Subtraction sweep — K=2 vs K=4 &nbsp;<span class="fn">A·B − C·D &gt; V<sub>th</sub>, 12 random operand sets</span></h2>
+  <p class="note">Twelve <b>randomly drawn</b> operand sets for the subtraction kernel. Each panel
+  sweeps V<sub>th</sub> and overlays the <b>exact</b> comparison (flips precisely at
+  V<sub>th</sub> = A·B−C·D) against the log/LNS output; the shaded band is where they disagree. The
+  two grids separate the accuracy knob — <b>K=2</b> (this build) vs <b>K=4</b> (double the mantissa
+  bits). More bits ⇒ fewer/narrower bands on average, but it is <b>not monotone per set</b>: a given
+  operand pair can hit a log-quantization <em>collision</em> at one K where the two products round to
+  the same log value (that is why a case can go flat). Curves are the golden model — bit-exact to the
+  RTL, which is verified at the shipped K=2.</p>
+  <div class="leg2"><span><i style="background:var(--accent)"></i>exact (multiplier)</span>
     <span><i style="background:#199e70"></i>log / LNS (K=2)</span>
-    <span><i style="background:#8a5cf0"></i>log / LNS (K=3)</span>
-    <span><i class="band"></i>disagree (K=2)</span></div>
+    <span><i style="background:#8a5cf0"></i>log / LNS (K=4)</span>
+    <span><i class="band"></i>disagree</span></div>
   {sweep_sub_plots()}
-  <p class="note"><b>Cancellation</b> sets the accuracy: when A·B and C·D are both large but their
-  difference is small — <b>60,60,50,50</b> (3600−2500) or <b>25,30,12,40</b> — the log path is well
-  off (wide band), whereas <b>8,8,5,5</b> is near-exact. The log design can err in either direction:
-  <b>40,40,10,10</b> flips a touch late (over-estimate), while <b>30,30,10,10</b> and
-  <b>23,19,11,7</b> flip early (under-estimate).</p>
+  <p class="note">Across the 12 random draws, <b>K=4 tightens the disagreement band in most panels</b>
+  (the log flip lands closer to the exact A·B−C·D), and the error can point either way. It is not
+  uniform: <b>cancellation-heavy pairs</b> (A·B ≈ C·D, small difference) stay the hardest at both K,
+  and an occasional set is a touch worse at the higher K from a log-quantization collision. Averaged
+  over the whole input space the trend <em>is</em> monotone — the measured disagreement drops
+  <b>2.84% (K=2) → 1.32% (K=4)</b> (see the Accuracy-vs-K table) — bought with ~2 extra helper bits
+  of area.</p>
 </section>
 
 <section id="accuracy">
