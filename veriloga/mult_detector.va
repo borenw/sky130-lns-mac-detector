@@ -1,0 +1,48 @@
+// mult_detector.va -- Cadence Spectre (Verilog-A) model of the CLASSIC (exact)
+// multiplier baseline:
+//
+//     out = ( A*B + C*D ) > Vth          computed with real multiplies
+//
+// Companion / golden reference to lns_detector.va: same A,B,C,D,Vth inputs, and it
+// exposes the linear-domain internals so they can be compared net-for-net against
+// the log-domain model:
+//
+//   p1 = A*B        p2 = C*D        s = A*B + C*D        out = ( s > Vth )
+//
+// Operands and threshold are analog INPUT voltages carrying the numeric values
+// (drive V(A)=25.0 for A=25).  p1, p2, s are exposed as analog OUTPUT voltages.
+
+`include "constants.vams"
+`include "disciplines.vams"
+
+module mult_detector (A, B, C, D, Vth, p1, p2, s, out);
+
+    // ---- ports ----
+    input  A, B, C, D, Vth;            // operands + threshold (numeric values, in volts)
+    output p1, p2, s, out;            // exposed products / sum + comparator output
+    electrical A, B, C, D, Vth, p1, p2, s, out;
+
+    // ---- parameters ----
+    parameter real    voh = 1.0;                    // logic-1 output level (V)
+    parameter real    vol = 0.0;                    // logic-0 output level (V)
+    parameter real    tr  = 1.0e-9 from (0:inf);    // output transition time (s)
+    parameter integer sub = 0 from [0:1];           // 0: A*B + C*D ; 1: A*B - C*D
+
+    real pp1, pp2, ss, outv;
+
+    analog begin
+        pp1 = V(A) * V(B);                          // A*B
+        pp2 = V(C) * V(D);                          // C*D
+        ss  = (sub != 0) ? (pp1 - pp2) : (pp1 + pp2);   // exact MAC (or MAC-difference)
+
+        // ---- expose the linear-domain nets ----
+        V(p1) <+ pp1;
+        V(p2) <+ pp2;
+        V(s)  <+ ss;
+
+        // ---- comparator:  out = ( A*B [+/-] C*D  >  Vth ) ----
+        outv = (ss > V(Vth)) ? voh : vol;
+        V(out) <+ transition(outv, 0.0, tr);
+    end
+
+endmodule

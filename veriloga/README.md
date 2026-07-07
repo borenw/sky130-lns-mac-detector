@@ -1,7 +1,18 @@
-# Verilog-A model — `lns_detector.va`
+# Verilog-A models
 
-Cadence **Spectre** (Verilog-A) behavioral model of the multiplier-free log/LNS MAC
-detector, with every internal log-domain net exposed for probing.
+Cadence **Spectre** (Verilog-A) behavioral models of both designs, with internal nets
+exposed for probing:
+
+- **`lns_detector.va`** — the multiplier-free **log / LNS** detector (log-domain nets).
+- **`mult_detector.va`** — the **classic exact multiplier** baseline (product nets).
+- **`tb_lns.scs`** — sweeps the LNS model alone.
+- **`tb_compare.scs`** — instantiates **both** and overlays their outputs vs. a Vth sweep.
+
+---
+
+## `lns_detector.va` — multiplier-free log/LNS
+
+Every internal log-domain net is exposed for probing.
 
 ```
 out = ( A*B + C*D ) > Vth          computed in the log2 domain
@@ -57,6 +68,40 @@ lC=log2(12)=3.585   lD=log2(40)=5.322   y=log2(480)=8.907
 s =log2(1230)=10.264 ;  out = 1 while Vth < 1230, 0 above
 ```
 
-> Behavioral model, not verified in this repo’s host (no Spectre here); it targets
+---
+
+## `mult_detector.va` — classic multiplier baseline
+
+Exact reference: `out = (A·B + C·D) > Vth` with real multiplies.
+
+| dir | net | meaning |
+|-----|-----|---------|
+| in  | `A B C D` | operands (numeric value as a voltage) |
+| in  | `Vth` | threshold |
+| out | `p1` | `A*B` |
+| out | `p2` | `C*D` |
+| out | `s` | `A*B + C*D` (or `A*B − C*D` when `sub=1`) |
+| out | `out` | comparator: `1` when `s > Vth` |
+
+Parameters: `sub` (`0`=add, `1`=subtract), `voh`/`vol`, `tr`. At A,B,C,D=25,30,12,40:
+`p1=750, p2=480, s=1230`, and `out` flips exactly at `Vth=1230`.
+
+## Compare both — `tb_compare.scs`
+
+```
+ahdl_include "mult_detector.va"
+ahdl_include "lns_detector.va"
+XM (A B C D Vth  p1 p2 sM  outM) mult_detector
+XL (A B C D Vth  lA lB lC lD  x y sL  outL) lns_detector exact=0 kbits=2
+```
+```
+spectre tb_compare.scs     # overlay outM vs outL against the Vth sweep
+```
+With `exact=0 kbits=2`, `outM` flips at Vth=1230 (exact) while `outL` flips at the K=2
+approximation (~1024) — the same disagreement the RTL sweep shows on the page.
+
+---
+
+> Behavioral models, not verified on this repo’s host (no Spectre here); they target
 > Cadence Spectre / Virtuoso. Standard Verilog-AMS (`constants.vams`,
 > `disciplines.vams`).

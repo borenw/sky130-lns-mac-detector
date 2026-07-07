@@ -831,7 +831,8 @@ PAGE = f"""<div class="wrap">
   <div class="tocg"><span class="tochdr">multiplier</span>
     <a href="{REPO_BLOB}/rtl/mult_detector.v">RTL ↗</a>
     <a href="{REPO_BLOB}/synth/mult_detector_netlist.v">gate-level ↗</a>
-    <a href="{REPO_BLOB}/synth/mult_detector.gds">GDS ↗</a></div>
+    <a href="{REPO_BLOB}/synth/mult_detector.gds">GDS ↗</a>
+    <a href="{REPO_BLOB}/veriloga/mult_detector.va">Verilog-A ↗</a></div>
 </nav>
 
 <section class="bdsec" id="rtl">

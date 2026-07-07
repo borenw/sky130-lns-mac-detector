@@ -1,0 +1,26 @@
+// tb_compare.scs -- Spectre: classic multiplier vs. log/LNS, same operands, sweep Vth.
+// Reproduces the page's RTL sweep in the analog domain: with A,B,C,D = 25,30,12,40
+// the exact output flips at Vth = A*B+C*D = 1230, while the K=2 log model flips at its
+// approximation (~1024) -- the gap between them is the LNS accuracy cost.
+//
+//   run:  spectre tb_compare.scs      then overlay outM vs outL against the Vth sweep.
+
+simulator lang=spectre
+ahdl_include "mult_detector.va"
+ahdl_include "lns_detector.va"
+
+VA  (A   0) vsource dc=25
+VB  (B   0) vsource dc=30
+VC  (C   0) vsource dc=12
+VD  (D   0) vsource dc=40
+VT  (Vth 0) vsource dc=600
+
+// classic exact baseline
+XM (A B C D Vth  p1 p2 sM  outM) mult_detector
+
+// multiplier-free log/LNS, K=2 hardware form (exact=0)
+XL (A B C D Vth  lA lB lC lD  x y sL  outL) lns_detector exact=0 kbits=2
+
+swpVth dc dev=VT param=dc start=0 stop=2000 step=2
+
+save p1 p2 sM outM  x y sL outL
