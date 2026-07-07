@@ -11,3 +11,5 @@ wave_run/logFile
 wave_run/spectre.out
 wave_run/sv.log
 wave_ascii/
+wave_sst2/log
+wave_sst2/logFile
