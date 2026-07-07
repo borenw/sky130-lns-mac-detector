@@ -2,3 +2,7 @@
 spectre_run/swpVth.dc
 spectre_run/spectre.out
 spectre_run/logFile
+virtuoso/lns_lib/
+virtuoso/ocean_results/
+virtuoso/*.cdslck
+virtuoso/CDS.log

@@ -1,0 +1,2 @@
+DEFINE lns_lib ./lns_lib
+SOFTINCLUDE /home/polaris/bw4375/cds.lib

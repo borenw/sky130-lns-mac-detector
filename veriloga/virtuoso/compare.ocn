@@ -1,0 +1,33 @@
+;; compare.ocn -- OCEAN (scriptable ADE) : DC sweep of Vth over the schematic
+;; testbench lns_lib/compare_tb, comparing the exact multiplier vs. the log/LNS
+;; model.  This is the headless equivalent of the ADE XL DC test.
+;;
+;;   run:  ocean -replay compare.ocn        (or  load("compare.ocn")  in CIW/ADE)
+;;
+;; Requires the schematic built by mk_tb.il (+ wired) so it can be netlisted.
+
+simulator( 'spectre )
+design( "lns_lib" "compare_tb" "schematic" )
+resultsDir( "./ocean_results" )
+
+;; the Vth source dc value is the design variable VTH; DC-sweep it 0 -> 2000
+desVar( "VTH" 600 )
+analysis( 'dc ?saveOppoint t ?param "VTH" ?start "0" ?stop "2000" ?step "2" )
+
+temp( 27 )
+save( 'v "/outM" "/outL" "/x" "/y" "/sM" "/sL" )
+run()
+
+;; --- outputs (in ADE XL, add these as expressions / plot outM & outL vs VTH) ---
+outM = v("/outM")
+outL = v("/outL")
+plot( outM outL )
+newWindow()
+plot( v("/x") v("/y") v("/sL") )
+
+;; flip points (cross()) : outM at Vth=A*B+C*D=1230, outL at the K=2 value 1024
+fM = cross( outM 0.5 1 'either )
+fL = cross( outL 0.5 1 'either )
+printf("outM (exact multiplier) flips at VTH = %L  (expect 1230)\n" fM)
+printf("outL (log / LNS, K=2)  flips at VTH = %L  (expect 1024)\n" fL)
+printf("disagreement band = [%L, %L]\n" fL fM)
